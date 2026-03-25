@@ -14,6 +14,10 @@
       font-family: sans-serif;
     }
 
+    body {
+      position: relative;
+    }
+
     #map {
       width: 100%;
       height: 100vh;
@@ -23,8 +27,8 @@
       position: absolute;
       top: 10px;
       right: 10px;
-      z-index: 1000;
-      background: white;
+      z-index: 9999;
+      background: rgba(255,255,255,0.96);
       padding: 8px;
       border-radius: 8px;
       box-shadow: 0 1px 6px rgba(0,0,0,0.25);
@@ -32,6 +36,7 @@
       gap: 6px;
       align-items: center;
       flex-wrap: wrap;
+      max-width: calc(100% - 20px);
     }
 
     #searchBox input {
@@ -40,6 +45,7 @@
       font-size: 14px;
       border: 1px solid #ccc;
       border-radius: 6px;
+      outline: none;
     }
 
     #searchBox button {
@@ -82,22 +88,11 @@
       opacity: 0.9;
     }
 
-    .label-text {
-      background: white;
-      border: 1px solid #999;
-      border-radius: 6px;
-      padding: 2px 6px;
-      font-size: 12px;
-      font-weight: bold;
-      white-space: nowrap;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-    }
-
     @media (max-width: 768px) {
       #searchBox {
+        top: 10px;
         left: 10px;
         right: 10px;
-        top: 10px;
       }
 
       #searchBox input {
@@ -108,7 +103,7 @@
 </head>
 <body>
   <div id="searchBox">
-    <input type="text" id="keyword" placeholder="駐車場名・住所で検索" />
+    <input type="text" id="keyword" placeholder="物件名・住所で検索" />
     <button onclick="searchLocation()">検索</button>
     <button onclick="resetMap()">解除</button>
   </div>
@@ -118,13 +113,10 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <script>
-    // ====== ここをあなたのCSV URLにする ======
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
 
-    // 地図初期化
     const map = L.map("map").setView([34.9897, 137.0021], 13);
 
-    // 背景地図
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -132,7 +124,6 @@
     const markers = [];
     const allData = [];
 
-    // Enterキーでも検索
     document.addEventListener("DOMContentLoaded", () => {
       const keywordInput = document.getElementById("keyword");
       keywordInput.addEventListener("keydown", function(e) {
@@ -142,7 +133,6 @@
       });
     });
 
-    // CSVを安全に1行ずつ配列化
     function parseCSV(text) {
       const rows = [];
       let row = [];
@@ -201,10 +191,6 @@
       return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
     }
 
-    function createGoogleDirectionsUrl(lat, lng) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    }
-
     function getStatusColor(status) {
       const s = (status || "").trim();
       if (s.includes("空")) return "green";
@@ -245,11 +231,19 @@
       });
     }
 
+    function hasValue(value) {
+      return String(value || "").trim() !== "";
+    }
+
+    function isParking(type) {
+      return String(type || "").includes("駐車場");
+    }
+
     function searchLocation() {
       const keyword = document.getElementById("keyword").value.trim().toLowerCase();
 
       if (!keyword) {
-        alert("検索したい駐車場名や住所を入力してください。");
+        alert("検索したい物件名や住所を入力してください。");
         return;
       }
 
@@ -266,7 +260,9 @@
       if (results.length === 1) {
         const item = results[0];
         map.setView([item.lat, item.lng], 17);
-        item.marker.openPopup();
+        if (item.hasPopup) {
+          item.marker.openPopup();
+        }
       } else {
         const group = L.featureGroup(results.map(r => r.marker));
         map.fitBounds(group.getBounds().pad(0.2));
@@ -340,7 +336,7 @@
             popupHtml += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
           }
 
-          if (price) {
+          if (hasValue(price)) {
             popupHtml += `<div class="popup-row"><strong>月額：</strong>${price}</div>`;
           }
 
@@ -354,25 +350,11 @@
             </a>
           `;
 
-          popupHtml += `
-            <br>
-            <a class="popup-link" href="${createGoogleDirectionsUrl(lat, lng)}" target="_blank" rel="noopener noreferrer" style="background:#444; margin-top:6px;">
-              Googleマップで開く
-            </a>
-          `;
+          const shouldBindPopup =
+            !isParking(type) || (isParking(type) && hasValue(price));
 
-          marker.bindPopup(popupHtml);
-
-          if (name) {
-            L.marker([lat, lng], {
-              icon: L.divIcon({
-                className: "",
-                html: `<div class="label-text">${name}</div>`,
-                iconSize: [120, 24],
-                iconAnchor: [-10, 10]
-              }),
-              interactive: false
-            }).addTo(map);
+          if (shouldBindPopup) {
+            marker.bindPopup(popupHtml);
           }
 
           markers.push(marker);
@@ -382,13 +364,20 @@
             address: address || "",
             lat: lat,
             lng: lng,
-            marker: marker
+            marker: marker,
+            hasPopup: shouldBindPopup
           });
         });
 
         if (markers.length > 0) {
           const group = L.featureGroup(markers);
           map.fitBounds(group.getBounds().pad(0.2));
+        }
+
+        // 念のため強制表示
+        const searchBox = document.getElementById("searchBox");
+        if (searchBox) {
+          searchBox.style.display = "flex";
         }
       })
       .catch(err => {
