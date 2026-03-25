@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>駐車場・賃貸物件マップ</title>
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     html, body {
       margin: 0;
@@ -20,6 +17,43 @@
     #map {
       width: 100%;
       height: 100vh;
+    }
+
+    #searchBox {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    #searchBox input {
+      width: 220px;
+      padding: 6px 8px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    #searchBox button {
+      padding: 6px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background: #0078d7;
+      color: white;
+    }
+
+    #searchBox button:last-child {
+      background: #666;
     }
 
     .popup-title {
@@ -58,9 +92,27 @@
       white-space: nowrap;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
     }
+
+    @media (max-width: 768px) {
+      #searchBox {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+      }
+
+      #searchBox input {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
+  <div id="searchBox">
+    <input type="text" id="keyword" placeholder="駐車場名・住所で検索" />
+    <button onclick="searchLocation()">検索</button>
+    <button onclick="resetMap()">解除</button>
+  </div>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -78,6 +130,17 @@
     }).addTo(map);
 
     const markers = [];
+    const allData = [];
+
+    // Enterキーでも検索
+    document.addEventListener("DOMContentLoaded", () => {
+      const keywordInput = document.getElementById("keyword");
+      keywordInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+          searchLocation();
+        }
+      });
+    });
 
     // CSVを安全に1行ずつ配列化
     function parseCSV(text) {
@@ -182,6 +245,42 @@
       });
     }
 
+    function searchLocation() {
+      const keyword = document.getElementById("keyword").value.trim().toLowerCase();
+
+      if (!keyword) {
+        alert("検索したい駐車場名や住所を入力してください。");
+        return;
+      }
+
+      const results = allData.filter(item =>
+        item.name.toLowerCase().includes(keyword) ||
+        item.address.toLowerCase().includes(keyword)
+      );
+
+      if (results.length === 0) {
+        alert("該当データがありません。");
+        return;
+      }
+
+      if (results.length === 1) {
+        const item = results[0];
+        map.setView([item.lat, item.lng], 17);
+        item.marker.openPopup();
+      } else {
+        const group = L.featureGroup(results.map(r => r.marker));
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+    }
+
+    function resetMap() {
+      document.getElementById("keyword").value = "";
+      if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+    }
+
     fetch(csvUrl)
       .then(res => res.text())
       .then(text => {
@@ -189,7 +288,6 @@
         const data = toObjects(rows);
 
         data.forEach(item => {
-          // 列名は必要に応じてここを合わせる
           const name =
             item["名称"] ||
             item["物件名"] ||
@@ -265,7 +363,6 @@
 
           marker.bindPopup(popupHtml);
 
-          // 名前ラベルを出したい場合
           if (name) {
             L.marker([lat, lng], {
               icon: L.divIcon({
@@ -279,6 +376,14 @@
           }
 
           markers.push(marker);
+
+          allData.push({
+            name: name || "",
+            address: address || "",
+            lat: lat,
+            lng: lng,
+            marker: marker
+          });
         });
 
         if (markers.length > 0) {
