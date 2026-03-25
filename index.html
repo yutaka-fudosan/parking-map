@@ -69,24 +69,25 @@
       font-size: 13px;
     }
 
-.popup-link {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: #0078d7;
-  color: #ffffff !important;
-  text-decoration: none !important;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-.popup-link:hover,
-.popup-link:visited,
-.popup-link:active {
-  color: #ffffff !important;
-  text-decoration: none !important;
-}
+    .popup-link {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: #0078d7;
+      color: #ffffff !important;
+      text-decoration: none !important;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .popup-link:hover,
+    .popup-link:visited,
+    .popup-link:active {
+      color: #ffffff !important;
+      text-decoration: none !important;
+    }
 
     .map-legend {
       background: rgba(255,255,255,0.96);
@@ -161,7 +162,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const markers = [];
 const allData = [];
-
 const markerGroups = {
   parking: [],
   housing: []
@@ -227,11 +227,12 @@ function hasValue(v) {
 
 function getStatusColor(status) {
   const s = (status || "").trim();
-
   if (s === "空予定") return "#f59e0b";
   if (s === "空") return "#16a34a";
   if (s === "満") return "#dc2626";
-
+  if (s.includes("予定")) return "#f59e0b";
+  if (s.includes("空")) return "#16a34a";
+  if (s.includes("満")) return "#dc2626";
   return "#2563eb";
 }
 
@@ -409,6 +410,7 @@ fetch(csvUrl)
       const type = item["種別"] || "";
       const status = item["空き状況"] || "";
       const price = item["月額"] || "";
+      const shortPrice = item["短期"] || "";
       const address = item["所在地"] || "";
       const note = item["備考"] || "";
       const lat = num(item["緯度"]);
@@ -420,22 +422,22 @@ fetch(csvUrl)
         icon: createIcon(getStatusColor(status), getTypeIcon(type), price, type)
       });
 
-      if (name) {
-  marker.bindTooltip(name, {
-    direction: "top",
-    offset: [0, -18],
-    opacity: 0.95,
-    sticky: true
-  });
-}
+      if (name && isParking(type)) {
+        marker.bindTooltip(name, {
+          direction: "top",
+          offset: [0, -18],
+          opacity: 0.95,
+          sticky: true
+        });
+      }
 
       let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
-      if (type) html += `<div class="popup-row"><strong>種別：</strong>${type}</div>`;
       if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
       if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
+      if (shortPrice) html += `<div class="popup-row" style="color:#d97706;font-weight:700;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
       if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
       if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
-      html += `<a class="popup-link" target="_blank" href="${createGoogleMapUrl(lat, lng)}">航空写真で見る</a>`;
+      html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${createGoogleMapUrl(lat, lng)}">航空写真で見る</a>`;
 
       marker.bindPopup(html).addTo(map);
 
