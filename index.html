@@ -420,6 +420,15 @@ fetch(csvUrl)
         icon: createIcon(getStatusColor(status), getTypeIcon(type), price, type)
       });
 
+      if (name) {
+  marker.bindTooltip(name, {
+    direction: "top",
+    offset: [0, -18],
+    opacity: 0.95,
+    sticky: true
+  });
+}
+
       let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
       if (type) html += `<div class="popup-row"><strong>種別：</strong>${type}</div>`;
       if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
