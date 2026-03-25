@@ -2,437 +2,245 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>駐車場・賃貸物件マップ</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
+      margin:0;
+      padding:0;
+      height:100%;
       font-family: Arial, sans-serif;
     }
 
-    body {
-      position: relative;
-    }
-
     #map {
-      width: 100%;
-      height: 100vh;
+      width:100%;
+      height:100vh;
     }
 
     #searchBox {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 9999;
-      background: rgba(255,255,255,0.96);
-      padding: 8px;
-      border-radius: 8px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.25);
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
-      max-width: calc(100% - 20px);
+      position:absolute;
+      top:10px;
+      right:10px;
+      z-index:9999;
+      background:white;
+      padding:8px;
+      border-radius:8px;
+      box-shadow:0 1px 6px rgba(0,0,0,0.25);
+      display:flex;
+      gap:6px;
     }
 
     #searchBox input {
-      width: 220px;
-      padding: 6px 8px;
-      font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      outline: none;
+      width:220px;
+      padding:6px;
+      border:1px solid #ccc;
+      border-radius:6px;
     }
 
     #searchBox button {
-      padding: 6px 10px;
-      font-size: 14px;
-      cursor: pointer;
-      border: none;
-      border-radius: 6px;
-      background: #0078d7;
-      color: white;
+      padding:6px 10px;
+      border:none;
+      border-radius:6px;
+      background:#0078d7;
+      color:white;
+      cursor:pointer;
     }
 
     #searchBox button:last-child {
-      background: #666;
+      background:#666;
     }
 
     .popup-title {
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 6px;
+      font-weight:bold;
+      margin-bottom:6px;
     }
 
     .popup-row {
-      margin-bottom: 4px;
-      line-height: 1.5;
+      margin-bottom:4px;
     }
 
     .popup-link {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 6px 10px;
-      background: #0078d7;
-      color: #fff !important;
-      text-decoration: none;
-      border-radius: 6px;
-      font-size: 13px;
-    }
-
-    .popup-link:hover {
-      opacity: 0.9;
-    }
-
-    @media (max-width: 768px) {
-      #searchBox {
-        top: 10px;
-        left: 10px;
-        right: 10px;
-      }
-
-      #searchBox input {
-        width: 100%;
-      }
+      display:inline-block;
+      margin-top:8px;
+      padding:6px 10px;
+      background:#0078d7;
+      color:white;
+      text-decoration:none;
+      border-radius:6px;
     }
   </style>
 </head>
+
 <body>
-  <div id="searchBox">
-    <input type="text" id="keyword" placeholder="物件名・住所で検索" />
-    <button onclick="searchLocation()">検索</button>
-    <button onclick="resetMap()">解除</button>
-  </div>
 
-  <div id="map"></div>
+<div id="searchBox">
+  <input type="text" id="keyword" placeholder="物件名・住所で検索">
+  <button onclick="searchLocation()">検索</button>
+  <button onclick="resetMap()">解除</button>
+</div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div id="map"></div>
 
-  <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    const map = L.map("map").setView([34.9897, 137.0021], 13);
+<script>
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
 
-    const markers = [];
-    const allData = [];
+const map = L.map("map").setView([34.9897,137.0021],13);
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const keywordInput = document.getElementById("keyword");
-      keywordInput.addEventListener("keydown", function(e) {
-        if (e.key === "Enter") {
-          searchLocation();
-        }
-      });
-    });
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-    function parseCSV(text) {
-      const rows = [];
-      let row = [];
-      let cell = "";
-      let inQuotes = false;
+const markers=[];
+const allData=[];
 
-      for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        const next = text[i + 1];
+// CSVパース（重要）
+function parseCSV(text){
+  const rows=[];
+  let row=[],cell="",inQuotes=false;
 
-        if (char === '"') {
-          if (inQuotes && next === '"') {
-            cell += '"';
-            i++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === "," && !inQuotes) {
-          row.push(cell);
-          cell = "";
-        } else if ((char === "\n" || char === "\r") && !inQuotes) {
-          if (char === "\r" && next === "\n") i++;
-          row.push(cell);
-          rows.push(row);
-          row = [];
-          cell = "";
-        } else {
-          cell += char;
-        }
-      }
+  for(let i=0;i<text.length;i++){
+    const c=text[i],n=text[i+1];
 
-      if (cell.length > 0 || row.length > 0) {
-        row.push(cell);
-        rows.push(row);
-      }
-
-      return rows;
+    if(c=='"'){
+      if(inQuotes&&n=='"'){cell+='"';i++;}
+      else{inQuotes=!inQuotes;}
+    }else if(c==","&&!inQuotes){
+      row.push(cell);cell="";
+    }else if((c=="\n"||c=="\r")&&!inQuotes){
+      if(c=="\r"&&n=="\n")i++;
+      row.push(cell);rows.push(row);
+      row=[];cell="";
+    }else{
+      cell+=c;
     }
+  }
+  if(cell||row.length){row.push(cell);rows.push(row);}
+  return rows;
+}
 
-    function toObjects(rows) {
-      const headers = rows[0].map(h => h.trim());
-      return rows.slice(1).map(r => {
-        const obj = {};
-        headers.forEach((h, i) => {
-          obj[h] = (r[i] || "").trim();
-        });
-        return obj;
-      });
-    }
+function toObjects(rows){
+  const h=rows[0];
+  return rows.slice(1).map(r=>{
+    const o={};
+    h.forEach((k,i)=>o[k]=r[i]);
+    return o;
+  });
+}
 
-    function num(val) {
-      return parseFloat(String(val || "").replace(/,/g, "").trim());
-    }
+function num(v){
+  return parseFloat(String(v||"").replace(/,/g,""));
+}
 
-    function createGoogleMapUrl(lat, lng) {
-      return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
-    }
+function hasValue(v){
+  return String(v||"").trim()!=="";
+}
 
-    function getStatusColor(status) {
-      const s = (status || "").trim();
-      if (s.includes("空")) return "#1f9d55";
-      if (s.includes("予定")) return "#f59e0b";
-      if (s.includes("満")) return "#dc2626";
-      return "#2563eb";
-    }
+function getColor(status){
+  if(status?.includes("空")) return "#16a34a";
+  if(status?.includes("予定")) return "#f59e0b";
+  if(status?.includes("満")) return "#dc2626";
+  return "#2563eb";
+}
 
-    function getTypeIcon(type) {
-      const t = (type || "").trim();
-      if (t.includes("駐車場")) return "P";
-      if (t.includes("居住") || t.includes("賃貸")) return "H";
-      return "●";
-    }
+function getIcon(type){
+  if(type?.includes("駐車場")) return "P";
+  if(type?.includes("居住")) return "H";
+  return "●";
+}
 
-    function hasValue(value) {
-      return String(value || "").trim() !== "";
-    }
+// ★見た目ここ
+function createIcon(color,text,price,type){
+  const parking=type?.includes("駐車場");
+  const show=parking&&hasValue(price);
 
-    function cleanPrice(value) {
-      return String(value || "").trim();
-    }
-
-    function shortPrice(value) {
-      const raw = String(value || "").replace(/[¥￥,\s]/g, "");
-      const n = parseInt(raw, 10);
-      if (isNaN(n)) return String(value || "").trim();
-      if (n % 1000 === 0) return `${n / 1000}千`;
-      return `${n}`;
-    }
-
-    function createDivIcon(color, text, price, type) {
-      const parking = String(type || "").includes("駐車場");
-      const hasPrice = parking && hasValue(price);
-
-      const badgeHtml = `
+  return L.divIcon({
+    html:`
+      <div style="display:flex;align-items:center;">
         <div style="
-          width:32px;
-          height:32px;
-          border-radius:50%;
-          background:${color};
-          color:white;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          font-size:14px;
-          font-weight:700;
-          border:2px solid white;
-          box-shadow:0 1px 4px rgba(0,0,0,0.35);
-          box-sizing:border-box;
-          flex:0 0 32px;
+          width:32px;height:32px;border-radius:50%;
+          background:${color};color:white;
+          display:flex;align-items:center;justify-content:center;
+          font-weight:bold;border:2px solid white;
         ">${text}</div>
-      `;
 
-      const priceHtml = hasPrice ? `
+        ${show?`
         <div style="
           margin-left:4px;
-          height:24px;
-          padding:0 7px;
-          border-radius:12px;
-          background:white;
-          color:#111;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          font-size:12px;
-          font-weight:700;
-          border:1px solid rgba(0,0,0,0.18);
-          box-shadow:0 1px 4px rgba(0,0,0,0.18);
-          white-space:nowrap;
-          box-sizing:border-box;
-        ">${shortPrice(price)}</div>
-      ` : "";
+          background:white;color:#111;
+          border-radius:12px;padding:2px 7px;
+          font-size:12px;font-weight:bold;
+          border:1px solid #ccc;
+        ">${price}</div>`:""}
+      </div>
+    `,
+    iconSize:[show?80:32,32],
+    iconAnchor:[show?40:16,16]
+  });
+}
 
-      const width = hasPrice ? 78 : 32;
-      const anchorX = hasPrice ? 39 : 16;
+function searchLocation(){
+  const k=keyword.value.toLowerCase();
+  const r=allData.filter(d=>d.name.toLowerCase().includes(k)||d.address.toLowerCase().includes(k));
 
-      return L.divIcon({
-        className: "",
-        html: `
-          <div style="
-            display:flex;
-            align-items:center;
-            justify-content:flex-start;
-            white-space:nowrap;
-            font-family:Arial, sans-serif;
-          ">
-            ${badgeHtml}
-            ${priceHtml}
-          </div>
-        `,
-        iconSize: [width, 32],
-        iconAnchor: [anchorX, 16],
-        popupAnchor: [0, -16]
-      });
-    }
+  if(r.length==1){
+    map.setView([r[0].lat,r[0].lng],17);
+    r[0].marker.openPopup();
+  }else{
+    map.fitBounds(L.featureGroup(r.map(x=>x.marker)).getBounds());
+  }
+}
 
-    function searchLocation() {
-      const keyword = document.getElementById("keyword").value.trim().toLowerCase();
+function resetMap(){
+  keyword.value="";
+  map.fitBounds(L.featureGroup(markers).getBounds());
+}
 
-      if (!keyword) {
-        alert("検索したい物件名や住所を入力してください。");
-        return;
-      }
+fetch(csvUrl)
+.then(r=>r.text())
+.then(text=>{
+  const data=toObjects(parseCSV(text));
 
-      const results = allData.filter(item =>
-        item.name.toLowerCase().includes(keyword) ||
-        item.address.toLowerCase().includes(keyword)
-      );
+  data.forEach(item=>{
 
-      if (results.length === 0) {
-        alert("該当データがありません。");
-        return;
-      }
+    const name=item["名称"]||"";
+    const type=item["種別"]||"";
+    const status=item["空き状況"]||"";
+    const price=item["月額"]||"";
+    const address=item["所在地"]||"";
+    const note=item["備考"]||"";
 
-      if (results.length === 1) {
-        const item = results[0];
-        map.setView([item.lat, item.lng], 17);
-        item.marker.openPopup();
-      } else {
-        const group = L.featureGroup(results.map(r => r.marker));
-        map.fitBounds(group.getBounds().pad(0.2));
-      }
-    }
+    const lat=num(item["緯度"]);
+    const lng=num(item["経度"]);
 
-    function resetMap() {
-      document.getElementById("keyword").value = "";
-      if (markers.length > 0) {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.2));
-      }
-    }
+    if(!lat||!lng)return;
 
-    fetch(csvUrl)
-      .then(res => res.text())
-      .then(text => {
-        const rows = parseCSV(text);
-        const data = toObjects(rows);
+    const marker=L.marker([lat,lng],{
+      icon:createIcon(getColor(status),getIcon(type),price,type)
+    }).addTo(map);
 
-        data.forEach(item => {
-          const name =
-            item["名称"] ||
-            item["物件名"] ||
-            item["駐車場名"] ||
-            item["名前"] ||
-            "";
+    let html=`<div class="popup-title">${name}</div>`;
+    if(type)html+=`<div class="popup-row">種別：${type}</div>`;
+    if(status)html+=`<div class="popup-row">状況：${status}</div>`;
+    if(price)html+=`<div class="popup-row">月額：${price}</div>`;
+    if(address)html+=`<div class="popup-row">住所：${address}</div>`;
+    if(note)html+=`<div class="popup-row">備考：${note}</div>`;
 
-          const type =
-            item["種別"] ||
-            "";
+    html+=`<a class="popup-link" target="_blank" href="https://www.google.com/maps?q=${lat},${lng}&t=k">航空写真</a>`;
 
-          const status =
-            item["空き状況"] ||
-            item["状況"] ||
-            "";
+    marker.bindPopup(html);
 
-          const price =
-            item["月額"] ||
-            item["賃料"] ||
-            item["料金"] ||
-            "";
+    markers.push(marker);
+    allData.push({name,address,lat,lng,marker});
+  });
 
-          const address =
-            item["住所"] ||
-            item["所在地"] ||
-            "";
+  map.fitBounds(L.featureGroup(markers).getBounds());
+});
 
-          const note =
-            item["備考"] ||
-            "";
+</script>
 
-          const lat =
-            num(item["緯度"] || item["lat"] || item["latitude"]);
-
-          const lng =
-            num(item["経度"] || item["lng"] || item["lon"] || item["longitude"]);
-
-          if (!lat || !lng) return;
-
-          const color = getStatusColor(status);
-          const iconText = getTypeIcon(type);
-
-          const marker = L.marker([lat, lng], {
-            icon: createDivIcon(color, iconText, cleanPrice(price), type)
-          }).addTo(map);
-
-          let popupHtml = `<div class="popup-title">${name || "名称未設定"}</div>`;
-
-          if (type) {
-            popupHtml += `<div class="popup-row"><strong>種別：</strong>${type}</div>`;
-          }
-
-          if (status) {
-            popupHtml += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
-          }
-
-          if (hasValue(price)) {
-            popupHtml += `<div class="popup-row"><strong>月額：</strong>${cleanPrice(price)}</div>`;
-          }
-
-          if (address) {
-            popupHtml += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
-          }
-
-          if (note) {
-            popupHtml += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
-          }
-
-          popupHtml += `
-            <a class="popup-link" href="${createGoogleMapUrl(lat, lng)}" target="_blank" rel="noopener noreferrer">
-              航空写真で見る
-            </a>
-          `;
-
-          marker.bindPopup(popupHtml);
-
-          markers.push(marker);
-
-          allData.push({
-            name: name || "",
-            address: address || "",
-            lat: lat,
-            lng: lng,
-            marker: marker
-          });
-        });
-
-        if (markers.length > 0) {
-          const group = L.featureGroup(markers);
-          map.fitBounds(group.getBounds().pad(0.2));
-        }
-
-        const searchBox = document.getElementById("searchBox");
-        if (searchBox) {
-          searchBox.style.display = "flex";
-        }
-      })
-      .catch(err => {
-        console.error("CSV読み込みエラー:", err);
-        alert("CSVの読み込みに失敗しました。URLや公開設定を確認してください。");
-      });
-  </script>
 </body>
 </html>
