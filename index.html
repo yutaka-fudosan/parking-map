@@ -227,9 +227,11 @@ function hasValue(v) {
 
 function getStatusColor(status) {
   const s = (status || "").trim();
-  if (s.includes("空")) return "#16a34a";
-  if (s.includes("予定")) return "#f59e0b";
-  if (s.includes("満")) return "#dc2626";
+
+  if (s === "空予定") return "#f59e0b";
+  if (s === "空") return "#16a34a";
+  if (s === "満") return "#dc2626";
+
   return "#2563eb";
 }
 
