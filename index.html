@@ -15,9 +15,7 @@
       font-family: sans-serif;
     }
 
-    body {
-      position: relative;
-    }
+    body { position: relative; }
 
     #map {
       width: 100%;
@@ -35,7 +33,6 @@
       box-shadow: 0 1px 6px rgba(0,0,0,0.25);
       display: flex;
       gap: 6px;
-      flex-wrap: wrap;
     }
 
     #searchBox input {
@@ -102,8 +99,44 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 const markers = [];
 const allData = [];
 
+// ★修正版CSVパーサー
 function parseCSV(text) {
-  return text.trim().split("\n").map(row => row.split(","));
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function toObjects(rows) {
