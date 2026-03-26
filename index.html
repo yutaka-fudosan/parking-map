@@ -164,7 +164,7 @@
   #filterToggle {
     top: 10px;
     left: 10px;
-    font-size: 13px; /* ← フィルター小さく */
+    font-size: 13px;
     padding: 6px 8px;
   }
 
@@ -174,9 +174,12 @@
   }
 
   #searchBox {
-    top: 80px;   /* ← ここがポイント（下げる） */
+    position: fixed;   /* ←ここ重要 */
+    bottom: 10px;      /* ←下に固定 */
     left: 10px;
     right: 10px;
+    top: auto;         /* ←上指定を解除 */
+    z-index: 10000;
     flex-wrap: wrap;
     max-width: none;
   }
