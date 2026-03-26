@@ -514,14 +514,14 @@ fetch(csvUrl)
         icon: createIcon(statusColor, getTypeIcon(type), price, type)
       });
 
-      if (name && isParking(type)) {
-        marker.bindTooltip(name, {
-          direction: "top",
-          offset: [0, -18],
-          opacity: 0.95,
-          sticky: true
-        });
-      }
+if (name) {
+  marker.bindTooltip(name, {
+    direction: "top",
+    offset: [0, -18],
+    opacity: 0.95,
+    sticky: true
+  });
+}
 
       let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
 
