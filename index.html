@@ -442,7 +442,7 @@ fetch(csvUrl)
       let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
       if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
       if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
-      if (shortPrice) html += `<div class="popup-row" style="color:${statusColor};font-weight:700;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
+     if (shortPrice) html += `<div class="popup-row" style="color:#000;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
       if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
       if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
       html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${createGoogleMapUrl(lat, lng)}">航空写真で見る</a>`;
