@@ -1,471 +1,93 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>駐車場・賃貸物件マップ</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>駐車場・賃貸物件マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: Arial, sans-serif;
-    }
-
-    body { position: relative; }
-
-    #map {
-      width: 100%;
-      height: 100vh;
-    }
-
-    #searchBox {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 9999;
-      background: rgba(255,255,255,0.96);
-      padding: 8px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    #searchBox input {
-      width: 220px;
-      padding: 7px 9px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-
-    #searchBox button {
-      padding: 7px 10px;
-      border: none;
-      border-radius: 6px;
-      background: #0078d7;
-      color: white;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    #searchBox button:last-child {
-      background: #666;
-    }
-
-    .popup-title {
-      font-weight: bold;
-      margin-bottom: 6px;
-      font-size: 15px;
-    }
-
-    .popup-row {
-      margin-bottom: 4px;
-      line-height: 1.5;
-      font-size: 13px;
-    }
-
-    .popup-link {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 6px 10px;
-      background: #0078d7;
-      color: #ffffff !important;
-      text-decoration: none !important;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .popup-link:hover,
-    .popup-link:visited,
-    .popup-link:active {
-      color: #ffffff !important;
-      text-decoration: none !important;
-    }
-
-    .map-legend {
-      background: rgba(255,255,255,0.96);
-      padding: 10px 12px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-      min-width: 170px;
-      line-height: 1.6;
-      font-size: 13px;
-    }
-
-    .map-legend-title {
-      font-weight: 700;
-      margin-bottom: 6px;
-      font-size: 14px;
-    }
-
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 4px 0;
-    }
-
-    .legend-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      display: inline-block;
-      flex: 0 0 12px;
-    }
-
-    .filter-check {
-      margin-right: 6px;
-    }
-
-    @media (max-width: 768px) {
-      #searchBox {
-        left: 10px;
-        right: 10px;
-        top: 10px;
-        flex-wrap: wrap;
-      }
-
-      #searchBox input {
-        width: 100%;
-        box-sizing: border-box;
-      }
-    }
-  </style>
+<style>
+html, body { margin:0; padding:0; height:100%; }
+#map { width:100%; height:100vh; }
+</style>
 </head>
+
 <body>
-
-<div id="searchBox">
-  <input type="text" id="keyword" placeholder="物件名・住所で検索">
-  <button onclick="searchLocation()">検索</button>
-  <button onclick="resetMap()">解除</button>
-</div>
-
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
+const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
+const csvUrl = baseCsvUrl + "&t=" + Date.now(); // キャッシュ対策
 
-const map = L.map("map").setView([34.9897, 137.0021], 13);
+const map = L.map("map").setView([34.9897,137.0021],13);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-const markers = [];
-const allData = [];
-const markerGroups = {
-  parking: [],
-  housing: []
-};
-
-function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        cell += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "," && !inQuotes) {
-      row.push(cell);
-      cell = "";
-    } else if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") i++;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else {
-      cell += char;
-    }
-  }
-
-  if (cell.length > 0 || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-
-  return rows;
+function getStatusColor(status){
+  if((status||"").includes("空")) return "#007bff"; // 青
+  return "#999999"; // グレー
 }
 
-function toObjects(rows) {
-  const headers = rows[0].map(h => h.trim());
-  return rows.slice(1).map(r => {
-    const obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = (r[i] || "").trim();
-    });
-    return obj;
-  });
+function getTypeIcon(type){
+  if((type||"").includes("駐車場")) return "P";
+  return "⌂";
 }
 
-function num(v) {
-  return parseFloat(String(v || "").replace(/,/g, "").trim());
-}
-
-function hasValue(v) {
-  return String(v || "").trim() !== "";
-}
-
-function getStatusColor(status) {
-  const s = (status || "").trim();
-  if (s === "空予定") return "#f59e0b";
-  if (s === "空") return "#16a34a";
-  if (s === "満") return "#dc2626";
-  if (s.includes("予定")) return "#f59e0b";
-  if (s.includes("空")) return "#16a34a";
-  if (s.includes("満")) return "#dc2626";
-  return "#2563eb";
-}
-
-function getTypeIcon(type) {
-  const t = (type || "").trim();
-  if (t.includes("駐車場")) return "P";
-  if (t.includes("居住") || t.includes("賃貸")) return "家";
-  return "●";
-}
-
-function isParking(type) {
-  return String(type || "").includes("駐車場");
-}
-
-function createGoogleMapUrl(lat, lng) {
-  return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
-}
-
-function formatPrice(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (raw.includes("¥") || raw.includes("￥")) return raw;
-  const n = parseInt(raw.replace(/,/g, ""), 10);
-  if (isNaN(n)) return raw;
-  return "¥" + n.toLocaleString();
-}
-
-function createIcon(color, text, price, type) {
-  const parking = isParking(type);
-  const showPrice = parking && hasValue(price);
-  const displayPrice = formatPrice(price);
-
+function createIcon(color,text){
   return L.divIcon({
-    className: "",
-    html: `
-      <div style="
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:flex-start;
-        transform: translateY(-4px);
-        font-family:Arial,sans-serif;
-      ">
-        <div style="
-          width:34px;
-          height:34px;
-          border-radius:50%;
-          background:${color};
-          color:white;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          font-size:${text === "家" ? "12px" : "14px"};
-          font-weight:700;
-          border:2px solid white;
-          box-shadow:0 2px 6px rgba(0,0,0,0.28);
-          box-sizing:border-box;
-          line-height:1;
-        ">${text}</div>
-        ${showPrice ? `
-          <div style="
-            margin-top:3px;
-            background:rgba(255,255,255,0.98);
-            color:#111;
-            border-radius:999px;
-            padding:2px 8px;
-            font-size:12px;
-            font-weight:700;
-            white-space:nowrap;
-            box-shadow:0 1px 4px rgba(0,0,0,0.18);
-            border:none;
-          ">${displayPrice}</div>
-        ` : ""}
-      </div>
-    `,
-    iconSize: [showPrice ? 70 : 34, showPrice ? 54 : 34],
-    iconAnchor: [showPrice ? 35 : 17, showPrice ? 42 : 17],
-    popupAnchor: [0, -18]
+    html:`<div style="
+      width:34px;height:34px;
+      border-radius:50%;
+      background:${color};
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:bold;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      border:2px solid white;
+      font-size:14px;
+    ">${text}</div>`,
+    className:"",
+    iconSize:[34,34],
+    iconAnchor:[17,17]
   });
 }
-
-function updateVisibleMarkers() {
-  const showParking = document.getElementById("filterParking")?.checked ?? true;
-  const showHousing = document.getElementById("filterHousing")?.checked ?? true;
-
-  [...markerGroups.parking, ...markerGroups.housing].forEach(marker => {
-    if (map.hasLayer(marker)) {
-      map.removeLayer(marker);
-    }
-  });
-
-  if (showParking) {
-    markerGroups.parking.forEach(marker => marker.addTo(map));
-  }
-
-  if (showHousing) {
-    markerGroups.housing.forEach(marker => marker.addTo(map));
-  }
-}
-
-function searchLocation() {
-  const keyword = document.getElementById("keyword").value.trim().toLowerCase();
-  if (!keyword) return;
-
-  const results = allData.filter(d =>
-    d.name.toLowerCase().includes(keyword) ||
-    d.address.toLowerCase().includes(keyword)
-  );
-
-  if (results.length === 0) {
-    alert("該当データがありません。");
-    return;
-  }
-
-  if (results.length === 1) {
-    map.setView([results[0].lat, results[0].lng], 17);
-    results[0].marker.openPopup();
-  } else {
-    const group = L.featureGroup(results.map(r => r.marker));
-    map.fitBounds(group.getBounds().pad(0.2));
-  }
-}
-
-function resetMap() {
-  document.getElementById("keyword").value = "";
-  if (markers.length > 0) {
-    const group = L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.2));
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const input = document.getElementById("keyword");
-  input.addEventListener("keydown", function(e) {
-    if (e.key === "Enter") {
-      searchLocation();
-    }
-  });
-});
-
-const legendControl = L.control({ position: "topleft" });
-
-legendControl.onAdd = function() {
-  const div = L.DomUtil.create("div", "map-legend");
-  div.innerHTML = `
-    <div class="map-legend-title">表示フィルター</div>
-
-    <div class="legend-row">
-      <label><input type="checkbox" id="filterHousing" class="filter-check" checked>居住用</label>
-    </div>
-    <div class="legend-row">
-      <label><input type="checkbox" id="filterParking" class="filter-check" checked>駐車場</label>
-    </div>
-
-    <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-
-    <div class="legend-row"><span class="legend-dot" style="background:#16a34a;"></span><span>空</span></div>
-    <div class="legend-row"><span class="legend-dot" style="background:#f59e0b;"></span><span>空予定</span></div>
-    <div class="legend-row"><span class="legend-dot" style="background:#dc2626;"></span><span>満</span></div>
-    <div class="legend-row"><span>家 = 居住用 / P = 駐車場</span></div>
-  `;
-  L.DomEvent.disableClickPropagation(div);
-  return div;
-};
-
-legendControl.addTo(map);
 
 fetch(csvUrl)
-  .then(r => r.text())
-  .then(text => {
-    const data = toObjects(parseCSV(text));
+.then(r=>r.text())
+.then(text=>{
+  const rows=text.split("\n").map(r=>r.split(","));
+  const headers=rows[0];
 
-    data.forEach(item => {
-      const name = item["名称"] || "";
-      const type = item["種別"] || "";
-      const status = item["空き状況"] || "";
-      const price = item["月額"] || "";
-      const shortPrice = item["短期"] || "";
-      const address = item["所在地"] || "";
-      const note = item["備考"] || "";
-      const lat = num(item["緯度"]);
-      const lng = num(item["経度"]);
+  rows.slice(1).forEach(r=>{
+    const obj={};
+    headers.forEach((h,i)=>obj[h]=r[i]);
 
-      if (!lat || !lng) return;
+    const lat=parseFloat(obj["緯度"]);
+    const lng=parseFloat(obj["経度"]);
+    if(!lat||!lng)return;
 
-      const marker = L.marker([lat, lng], {
-        icon: createIcon(getStatusColor(status), getTypeIcon(type), price, type)
-      });
+    const name=obj["名称"]||"";
+    const type=obj["種別"]||"";
+    const status=obj["空き状況"]||"";
+    const price=obj["月額"]||"";
+    const shortPrice=obj["短期"]||"";
 
-      if (name && isParking(type)) {
-        marker.bindTooltip(name, {
-          direction: "top",
-          offset: [0, -18],
-          opacity: 0.95,
-          sticky: true
-        });
-      }
+    const marker=L.marker([lat,lng],{
+      icon:createIcon(getStatusColor(status),getTypeIcon(type))
+    }).addTo(map);
 
-      let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
-      if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
-      if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
-      if (shortPrice) html += `<div class="popup-row" style="color:#d97706;font-weight:700;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
-      if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
-      if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
-      html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${createGoogleMapUrl(lat, lng)}">航空写真で見る</a>`;
+    let html=`<b>${name}</b><br>`;
+    if(status) html+=`状況：${status}<br>`;
+    if(price) html+=`月額：¥${Number(price).toLocaleString()}<br>`;
+    if(shortPrice) html+=`<span style="color:#000;font-weight:bold;">短期：¥${Number(shortPrice).toLocaleString()}</span><br>`;
 
-      marker.bindPopup(html).addTo(map);
-
-      markers.push(marker);
-      allData.push({ name, address, lat, lng, marker });
-
-      if (isParking(type)) {
-        markerGroups.parking.push(marker);
-      } else {
-        markerGroups.housing.push(marker);
-      }
-    });
-
-    if (markers.length > 0) {
-      map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
-    }
-
-    const filterHousing = document.getElementById("filterHousing");
-    const filterParking = document.getElementById("filterParking");
-
-    if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
-    if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
-  })
-  .catch(err => {
-    console.error("CSV読み込みエラー:", err);
-    alert("CSVの読み込みに失敗しました。URLや公開設定を確認してください。");
+    marker.bindPopup(html);
   });
+});
 </script>
-
 </body>
 </html>
