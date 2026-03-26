@@ -10,6 +10,31 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
+    #filterToggle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10000;
+  background: rgba(255,255,255,0.96);
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+#filterBox {
+  position: absolute;
+  top: 52px;
+  left: 10px;
+  z-index: 9999;
+}
+
+.hidden {
+  display: none;
+}
     html, body {
       margin: 0;
       padding: 0;
@@ -151,6 +176,8 @@
   </style>
 </head>
 <body>
+  <div id="filterToggle">☰ フィルター</div>
+<div id="filterBox"></div>
 
 <div id="searchBox">
   <input type="text" id="keyword" placeholder="物件名・住所で検索">
@@ -394,11 +421,10 @@ const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
     });
   });
 
-  const legendControl = L.control({ position: "topleft" });
-
-  legendControl.onAdd = function() {
-    const div = L.DomUtil.create("div", "map-legend");
-    div.innerHTML = `
+function renderFilterBox() {
+  const box = document.getElementById("filterBox");
+  box.innerHTML = `
+    <div class="map-legend">
       <div class="map-legend-title">表示フィルター</div>
 
       <div class="legend-row">
@@ -415,12 +441,37 @@ const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
       <div class="legend-row"><span class="legend-dot" style="background:#dc2626;"></span><span>満</span></div>
       <div class="legend-row"><span class="legend-dot" style="background:#999999;"></span><span>不明</span></div>
       <div class="legend-row"><span>⌂ = 居住用 / P = 駐車場</span></div>
-    `;
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  };
+    </div>
+  `;
 
-  legendControl.addTo(map);
+  const filterHousing = document.getElementById("filterHousing");
+  const filterParking = document.getElementById("filterParking");
+
+  if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
+  if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("keyword");
+  if (input) {
+    input.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        searchLocation();
+      }
+    });
+  }
+
+  renderFilterBox();
+
+  const toggle = document.getElementById("filterToggle");
+  const box = document.getElementById("filterBox");
+
+  if (toggle && box) {
+    toggle.addEventListener("click", function() {
+      box.classList.toggle("hidden");
+    });
+  }
+});
 
   fetch(csvUrl)
     .then(r => r.text())
@@ -490,12 +541,6 @@ const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
         map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
       }
 
-      const filterHousing = document.getElementById("filterHousing");
-      const filterParking = document.getElementById("filterParking");
-
-      if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
-      if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
-    })
     .catch(err => {
       console.error("CSV読み込みエラー:", err);
       alert("CSVの読み込みに失敗しました。URLや公開設定を確認してください。");
