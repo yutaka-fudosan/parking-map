@@ -1,93 +1,225 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>駐車場・賃貸物件マップ</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>駐車場・賃貸物件マップ</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
-<style>
-html, body { margin:0; padding:0; height:100%; }
-#map { width:100%; height:100vh; }
-</style>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+  </style>
 </head>
-
 <body>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
-const csvUrl = baseCsvUrl + "&t=" + Date.now(); // キャッシュ対策
+const csvUrl = baseCsvUrl + "&t=" + Date.now();
 
-const map = L.map("map").setView([34.9897,137.0021],13);
+const map = L.map("map").setView([34.9897, 137.0021], 13);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-function getStatusColor(status){
-  if((status||"").includes("空")) return "#007bff"; // 青
-  return "#999999"; // グレー
+const markers = [];
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
 }
 
-function getTypeIcon(type){
-  if((type||"").includes("駐車場")) return "P";
+function toObjects(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map(h => String(h || "").trim());
+
+  return rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = String(r[i] || "").trim();
+    });
+    return obj;
+  });
+}
+
+function num(v) {
+  return parseFloat(String(v || "").replace(/,/g, "").trim());
+}
+
+function formatPrice(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.includes("¥") || raw.includes("￥")) return raw;
+
+  const n = parseInt(raw.replace(/,/g, ""), 10);
+  if (isNaN(n)) return raw;
+
+  return "¥" + n.toLocaleString();
+}
+
+function getStatusColor(status) {
+  const s = String(status || "").trim();
+  if (s === "空" || s === "空き" || s.includes("空")) {
+    return "#007bff";
+  }
+  return "#999999";
+}
+
+function getTypeIcon(type) {
+  const t = String(type || "").trim();
+  if (t.includes("駐車場")) return "P";
   return "⌂";
 }
 
-function createIcon(color,text){
+function isParking(type) {
+  return String(type || "").includes("駐車場");
+}
+
+function createIcon(color, text, price, type) {
+  const showPrice = isParking(type) && String(price || "").trim() !== "";
+  const displayPrice = formatPrice(price);
+
   return L.divIcon({
-    html:`<div style="
-      width:34px;height:34px;
-      border-radius:50%;
-      background:${color};
-      color:white;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-weight:bold;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      border:2px solid white;
-      font-size:14px;
-    ">${text}</div>`,
-    className:"",
-    iconSize:[34,34],
-    iconAnchor:[17,17]
+    className: "",
+    html: `
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:flex-start;
+        transform: translateY(-4px);
+        font-family:Arial,sans-serif;
+      ">
+        <div style="
+          width:34px;
+          height:34px;
+          border-radius:50%;
+          background:${color};
+          color:white;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-size:${text === "⌂" ? "16px" : "14px"};
+          font-weight:700;
+          border:2px solid white;
+          box-shadow:0 2px 6px rgba(0,0,0,0.28);
+          box-sizing:border-box;
+          line-height:1;
+        ">${text}</div>
+        ${showPrice ? `
+          <div style="
+            margin-top:3px;
+            background:rgba(255,255,255,0.98);
+            color:#111;
+            border-radius:999px;
+            padding:2px 8px;
+            font-size:12px;
+            font-weight:700;
+            white-space:nowrap;
+            box-shadow:0 1px 4px rgba(0,0,0,0.18);
+          ">${displayPrice}</div>
+        ` : ""}
+      </div>
+    `,
+    iconSize: [showPrice ? 70 : 34, showPrice ? 54 : 34],
+    iconAnchor: [showPrice ? 35 : 17, showPrice ? 42 : 17],
+    popupAnchor: [0, -18]
   });
 }
 
 fetch(csvUrl)
-.then(r=>r.text())
-.then(text=>{
-  const rows=text.split("\n").map(r=>r.split(","));
-  const headers=rows[0];
+  .then(r => r.text())
+  .then(text => {
+    const data = toObjects(parseCSV(text));
 
-  rows.slice(1).forEach(r=>{
-    const obj={};
-    headers.forEach((h,i)=>obj[h]=r[i]);
+    data.forEach(item => {
+      const name = item["名称"] || "";
+      const type = item["種別"] || "";
+      const status = item["空き状況"] || "";
+      const price = item["月額"] || "";
+      const shortPrice = item["短期"] || "";
+      const address = item["所在地"] || "";
+      const note = item["備考"] || "";
+      const lat = num(item["緯度"]);
+      const lng = num(item["経度"]);
 
-    const lat=parseFloat(obj["緯度"]);
-    const lng=parseFloat(obj["経度"]);
-    if(!lat||!lng)return;
+      if (isNaN(lat) || isNaN(lng)) return;
 
-    const name=obj["名称"]||"";
-    const type=obj["種別"]||"";
-    const status=obj["空き状況"]||"";
-    const price=obj["月額"]||"";
-    const shortPrice=obj["短期"]||"";
+      const marker = L.marker([lat, lng], {
+        icon: createIcon(getStatusColor(status), getTypeIcon(type), price, type)
+      }).addTo(map);
 
-    const marker=L.marker([lat,lng],{
-      icon:createIcon(getStatusColor(status),getTypeIcon(type))
-    }).addTo(map);
+      let html = `<div style="font-weight:bold;margin-bottom:6px;">${name || "名称未設定"}</div>`;
+      if (status) html += `<div style="margin-bottom:4px;">状況：${status}</div>`;
+      if (price) html += `<div style="margin-bottom:4px;">月額：${formatPrice(price)}</div>`;
+      if (shortPrice) html += `<div style="margin-bottom:4px;color:#000;font-weight:700;">短期：${formatPrice(shortPrice)}</div>`;
+      if (address) html += `<div style="margin-bottom:4px;">住所：${address}</div>`;
+      if (note) html += `<div style="margin-bottom:4px;">備考：${note}</div>`;
 
-    let html=`<b>${name}</b><br>`;
-    if(status) html+=`状況：${status}<br>`;
-    if(price) html+=`月額：¥${Number(price).toLocaleString()}<br>`;
-    if(shortPrice) html+=`<span style="color:#000;font-weight:bold;">短期：¥${Number(shortPrice).toLocaleString()}</span><br>`;
+      marker.bindPopup(html);
+      markers.push(marker);
+    });
 
-    marker.bindPopup(html);
+    if (markers.length > 0) {
+      const group = L.featureGroup(markers);
+      map.fitBounds(group.getBounds().pad(0.2));
+    } else {
+      console.log("マーカー0件：緯度経度の取得に失敗している可能性があります");
+    }
+  })
+  .catch(err => {
+    console.error("CSV読み込みエラー:", err);
+    alert("CSVの読み込みに失敗しました。");
   });
-});
 </script>
+
 </body>
 </html>
