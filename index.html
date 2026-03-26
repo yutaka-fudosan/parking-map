@@ -473,78 +473,78 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-  fetch(csvUrl)
-    .then(r => r.text())
-    .then(text => {
-      const data = toObjects(parseCSV(text));
+fetch(csvUrl)
+  .then(r => r.text())
+  .then(text => {
+    const data = toObjects(parseCSV(text));
 
-      data.forEach(item => {
-        const name = item["名称"] || "";
-        const type = item["種別"] || "";
-        const status = item["空き状況"] || "";
-        const price = item["月額"] || "";
-        const shortPrice = item["短期"] || "";
-        const address = item["所在地"] || "";
-        const note = item["備考"] || "";
-        const sheetGid = item["gid"] || "";
-        const lat = num(item["緯度"]);
-        const lng = num(item["経度"]);
+    data.forEach(item => {
+      const name = item["名称"] || "";
+      const type = item["種別"] || "";
+      const status = item["空き状況"] || "";
+      const price = item["月額"] || "";
+      const shortPrice = item["短期"] || "";
+      const address = item["所在地"] || "";
+      const note = item["備考"] || "";
+      const sheetGid = item["gid"] || "";
+      const lat = num(item["緯度"]);
+      const lng = num(item["経度"]);
 
-        if (!lat || !lng) return;
+      if (!lat || !lng) return;
 
-        const statusColor = getStatusColor(status);
+      const statusColor = getStatusColor(status);
 
-        const marker = L.marker([lat, lng], {
-          icon: createIcon(statusColor, getTypeIcon(type), price, type)
-        });
-
-        if (name && isParking(type)) {
-          marker.bindTooltip(name, {
-            direction: "top",
-            offset: [0, -18],
-            opacity: 0.95,
-            sticky: true
-          });
-        }
-
-        let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
-
-        if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
-        if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
-        if (shortPrice) html += `<div class="popup-row" style="color:#000;">短期：${formatPrice(shortPrice)}</div>`;
-        if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
-        if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
-
-        html += `<div class="popup-buttons">`;
-
-        if (sheetGid) {
-          const sheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${sheetGid}`;
-          html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${sheetUrl}" style="background:#16a34a;">シートを見る</a>`;
-        }
-
-        html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${createGoogleMapUrl(lat, lng)}" style="background:#0078d7;">航空写真で見る</a>`;
-        html += `</div>`;
-
-        marker.bindPopup(html).addTo(map);
-
-        markers.push(marker);
-        allData.push({ name, address, lat, lng, marker });
-
-        if (isParking(type)) {
-          markerGroups.parking.push(marker);
-        } else {
-          markerGroups.housing.push(marker);
-        }
+      const marker = L.marker([lat, lng], {
+        icon: createIcon(statusColor, getTypeIcon(type), price, type)
       });
 
-      if (markers.length > 0) {
-        map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+      if (name && isParking(type)) {
+        marker.bindTooltip(name, {
+          direction: "top",
+          offset: [0, -18],
+          opacity: 0.95,
+          sticky: true
+        });
       }
 
-    .catch(err => {
-      console.error("CSV読み込みエラー:", err);
-      alert("CSVの読み込みに失敗しました。URLや公開設定を確認してください。");
+      let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
+
+      if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
+      if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
+      if (shortPrice) html += `<div class="popup-row">短期：${formatPrice(shortPrice)}</div>`;
+      if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
+      if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
+
+      html += `<div class="popup-buttons">`;
+
+      if (sheetGid) {
+        const sheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${sheetGid}`;
+        html += `<a class="popup-link" target="_blank" href="${sheetUrl}" style="background:#16a34a;">シート</a>`;
+      }
+
+      html += `<a class="popup-link" target="_blank" href="${createGoogleMapUrl(lat, lng)}" style="background:#0078d7;">航空</a>`;
+      html += `</div>`;
+
+      marker.bindPopup(html).addTo(map);
+
+      markers.push(marker);
+      allData.push({ name, address, lat, lng, marker });
+
+      if (isParking(type)) {
+        markerGroups.parking.push(marker);
+      } else {
+        markerGroups.housing.push(marker);
+      }
     });
+
+    if (markers.length > 0) {
+      map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+    }
+  })
+  .catch(err => {
+    console.error("CSV読み込みエラー:", err);
+    alert("CSVの読み込みに失敗しました");
+  });
 </script>
 
 </body>
