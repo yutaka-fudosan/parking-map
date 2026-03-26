@@ -14,13 +14,138 @@
       font-family: Arial, sans-serif;
     }
 
+    body { position: relative; }
+
     #map {
       width: 100%;
       height: 100vh;
     }
+
+    #searchBox {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+      background: rgba(255,255,255,0.96);
+      padding: 8px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    #searchBox input {
+      width: 220px;
+      padding: 7px 9px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    #searchBox button {
+      padding: 7px 10px;
+      border: none;
+      border-radius: 6px;
+      background: #0078d7;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    #searchBox button:last-child {
+      background: #666;
+    }
+
+    .popup-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .popup-row {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .popup-link {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: #0078d7;
+      color: #ffffff !important;
+      text-decoration: none !important;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .popup-link:hover,
+    .popup-link:visited,
+    .popup-link:active {
+      color: #ffffff !important;
+      text-decoration: none !important;
+    }
+
+    .map-legend {
+      background: rgba(255,255,255,0.96);
+      padding: 10px 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      min-width: 170px;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .map-legend-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      flex: 0 0 12px;
+    }
+
+    .filter-check {
+      margin-right: 6px;
+    }
+
+    @media (max-width: 768px) {
+      #searchBox {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+        flex-wrap: wrap;
+      }
+
+      #searchBox input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
   </style>
 </head>
 <body>
+
+<div id="searchBox">
+  <input type="text" id="keyword" placeholder="物件名・住所で検索">
+  <button onclick="searchLocation()">検索</button>
+  <button onclick="resetMap()">解除</button>
+</div>
 
 <div id="map"></div>
 
@@ -37,6 +162,11 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 const markers = [];
+const allData = [];
+const markerGroups = {
+  parking: [],
+  housing: []
+};
 
 function parseCSV(text) {
   const rows = [];
@@ -78,13 +208,11 @@ function parseCSV(text) {
 }
 
 function toObjects(rows) {
-  if (!rows.length) return [];
-  const headers = rows[0].map(h => String(h || "").trim());
-
+  const headers = rows[0].map(h => h.trim());
   return rows.slice(1).map(r => {
     const obj = {};
     headers.forEach((h, i) => {
-      obj[h] = String(r[i] || "").trim();
+      obj[h] = (r[i] || "").trim();
     });
     return obj;
   });
@@ -94,37 +222,52 @@ function num(v) {
   return parseFloat(String(v || "").replace(/,/g, "").trim());
 }
 
-function formatPrice(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (raw.includes("¥") || raw.includes("￥")) return raw;
-
-  const n = parseInt(raw.replace(/,/g, ""), 10);
-  if (isNaN(n)) return raw;
-
-  return "¥" + n.toLocaleString();
+function hasValue(v) {
+  return String(v || "").trim() !== "";
 }
 
 function getStatusColor(status) {
-  const s = String(status || "").trim();
-  if (s === "空" || s === "空き" || s.includes("空")) {
-    return "#007bff";
-  }
+  const s = (status || "").trim();
+
+  if (!s) return "#999999";      // 不明
+  if (s === "空予定") return "#f59e0b";
+  if (s === "空") return "#007bff"; // 青
+  if (s === "満") return "#dc2626";
+
+  if (s.includes("予定")) return "#f59e0b";
+  if (s.includes("空")) return "#007bff";
+  if (s.includes("満")) return "#dc2626";
+
   return "#999999";
 }
 
 function getTypeIcon(type) {
-  const t = String(type || "").trim();
+  const t = (type || "").trim();
   if (t.includes("駐車場")) return "P";
-  return "⌂";
+  if (t.includes("居住") || t.includes("賃貸")) return "⌂";
+  return "●";
 }
 
 function isParking(type) {
   return String(type || "").includes("駐車場");
 }
 
+function createGoogleMapUrl(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
+}
+
+function formatPrice(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.includes("¥") || raw.includes("￥")) return raw;
+  const n = parseInt(raw.replace(/,/g, ""), 10);
+  if (isNaN(n)) return raw;
+  return "¥" + n.toLocaleString();
+}
+
 function createIcon(color, text, price, type) {
-  const showPrice = isParking(type) && String(price || "").trim() !== "";
+  const parking = isParking(type);
+  const showPrice = parking && hasValue(price);
   const displayPrice = formatPrice(price);
 
   return L.divIcon({
@@ -165,6 +308,7 @@ function createIcon(color, text, price, type) {
             font-weight:700;
             white-space:nowrap;
             box-shadow:0 1px 4px rgba(0,0,0,0.18);
+            border:none;
           ">${displayPrice}</div>
         ` : ""}
       </div>
@@ -174,6 +318,93 @@ function createIcon(color, text, price, type) {
     popupAnchor: [0, -18]
   });
 }
+
+function updateVisibleMarkers() {
+  const showParking = document.getElementById("filterParking")?.checked ?? true;
+  const showHousing = document.getElementById("filterHousing")?.checked ?? true;
+
+  [...markerGroups.parking, ...markerGroups.housing].forEach(marker => {
+    if (map.hasLayer(marker)) {
+      map.removeLayer(marker);
+    }
+  });
+
+  if (showParking) {
+    markerGroups.parking.forEach(marker => marker.addTo(map));
+  }
+
+  if (showHousing) {
+    markerGroups.housing.forEach(marker => marker.addTo(map));
+  }
+}
+
+function searchLocation() {
+  const keyword = document.getElementById("keyword").value.trim().toLowerCase();
+  if (!keyword) return;
+
+  const results = allData.filter(d =>
+    d.name.toLowerCase().includes(keyword) ||
+    d.address.toLowerCase().includes(keyword)
+  );
+
+  if (results.length === 0) {
+    alert("該当データがありません。");
+    return;
+  }
+
+  if (results.length === 1) {
+    map.setView([results[0].lat, results[0].lng], 17);
+    results[0].marker.openPopup();
+  } else {
+    const group = L.featureGroup(results.map(r => r.marker));
+    map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+function resetMap() {
+  document.getElementById("keyword").value = "";
+  if (markers.length > 0) {
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("keyword");
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      searchLocation();
+    }
+  });
+});
+
+const legendControl = L.control({ position: "topleft" });
+
+legendControl.onAdd = function() {
+  const div = L.DomUtil.create("div", "map-legend");
+  div.innerHTML = `
+    <div class="map-legend-title">表示フィルター</div>
+
+    <div class="legend-row">
+      <label><input type="checkbox" id="filterHousing" class="filter-check" checked>居住用</label>
+    </div>
+    <div class="legend-row">
+      <label><input type="checkbox" id="filterParking" class="filter-check" checked>駐車場</label>
+    </div>
+
+    <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
+
+    <div class="legend-row"><span class="legend-dot" style="background:#007bff;"></span><span>空</span></div>
+    <div class="legend-row"><span class="legend-dot" style="background:#f59e0b;"></span><span>空予定</span></div>
+    <div class="legend-row"><span class="legend-dot" style="background:#dc2626;"></span><span>満</span></div>
+    <div class="legend-row"><span class="legend-dot" style="background:#999999;"></span><span>不明</span></div>
+    <div class="legend-row"><span>⌂ = 居住用 / P = 駐車場</span></div>
+  `;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+
+legendControl.addTo(map);
 
 fetch(csvUrl)
   .then(r => r.text())
@@ -191,33 +422,56 @@ fetch(csvUrl)
       const lat = num(item["緯度"]);
       const lng = num(item["経度"]);
 
-      if (isNaN(lat) || isNaN(lng)) return;
+      if (!lat || !lng) return;
+
+      const statusColor = getStatusColor(status);
 
       const marker = L.marker([lat, lng], {
-        icon: createIcon(getStatusColor(status), getTypeIcon(type), price, type)
-      }).addTo(map);
+        icon: createIcon(statusColor, getTypeIcon(type), price, type)
+      });
 
-      let html = `<div style="font-weight:bold;margin-bottom:6px;">${name || "名称未設定"}</div>`;
-      if (status) html += `<div style="margin-bottom:4px;">状況：${status}</div>`;
-      if (price) html += `<div style="margin-bottom:4px;">月額：${formatPrice(price)}</div>`;
-      if (shortPrice) html += `<div style="margin-bottom:4px;color:#000;font-weight:700;">短期：${formatPrice(shortPrice)}</div>`;
-      if (address) html += `<div style="margin-bottom:4px;">住所：${address}</div>`;
-      if (note) html += `<div style="margin-bottom:4px;">備考：${note}</div>`;
+      if (name && isParking(type)) {
+        marker.bindTooltip(name, {
+          direction: "top",
+          offset: [0, -18],
+          opacity: 0.95,
+          sticky: true
+        });
+      }
 
-      marker.bindPopup(html);
+      let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
+      if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
+      if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
+      if (shortPrice) html += `<div class="popup-row" style="color:${statusColor};font-weight:700;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
+      if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
+      if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
+      html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${createGoogleMapUrl(lat, lng)}">航空写真で見る</a>`;
+
+      marker.bindPopup(html).addTo(map);
+
       markers.push(marker);
+      allData.push({ name, address, lat, lng, marker });
+
+      if (isParking(type)) {
+        markerGroups.parking.push(marker);
+      } else {
+        markerGroups.housing.push(marker);
+      }
     });
 
     if (markers.length > 0) {
-      const group = L.featureGroup(markers);
-      map.fitBounds(group.getBounds().pad(0.2));
-    } else {
-      console.log("マーカー0件：緯度経度の取得に失敗している可能性があります");
+      map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
     }
+
+    const filterHousing = document.getElementById("filterHousing");
+    const filterParking = document.getElementById("filterParking");
+
+    if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
+    if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
   })
   .catch(err => {
     console.error("CSV読み込みエラー:", err);
-    alert("CSVの読み込みに失敗しました。");
+    alert("CSVの読み込みに失敗しました。URLや公開設定を確認してください。");
   });
 </script>
 
