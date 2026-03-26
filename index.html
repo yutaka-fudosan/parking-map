@@ -160,19 +160,32 @@
       margin-right: 6px;
     }
 
-    @media (max-width: 768px) {
-      #searchBox {
-        left: 10px;
-        right: 10px;
-        top: 10px;
-        flex-wrap: wrap;
-      }
+@media (max-width: 768px) {
+  #filterToggle {
+    top: 10px;
+    left: 10px;
+    font-size: 13px; /* ← フィルター小さく */
+    padding: 6px 8px;
+  }
 
-      #searchBox input {
-        width: 100%;
-        box-sizing: border-box;
-      }
-    }
+  #filterBox {
+    top: 50px;
+    left: 10px;
+  }
+
+  #searchBox {
+    top: 80px;   /* ← ここがポイント（下げる） */
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
+    max-width: none;
+  }
+
+  #searchBox input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
   </style>
 </head>
 <body>
