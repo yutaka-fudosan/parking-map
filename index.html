@@ -419,6 +419,7 @@ fetch(csvUrl)
       const shortPrice = item["短期"] || "";
       const address = item["所在地"] || "";
       const note = item["備考"] || "";
+      const sheetUrl = item["シートURL"] || "";
       const lat = num(item["緯度"]);
       const lng = num(item["経度"]);
 
@@ -440,6 +441,9 @@ fetch(csvUrl)
       }
 
       let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
+      if (sheetUrl) {
+  html += `<a class="popup-link" target="_blank" rel="noopener noreferrer" href="${sheetUrl}" style="display:inline-block;margin-top:8px;margin-bottom:6px;background:#16a34a;">シートを見る</a>`;
+}
       if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
       if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
      if (shortPrice) html += `<div class="popup-row" style="color:#000;"><strong>短期：</strong>${formatPrice(shortPrice)}</div>`;
