@@ -213,6 +213,7 @@ const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
   const csvUrl = baseCsvUrl + "&t=" + Date.now();
 
   const map = L.map("map").setView([34.9897, 137.0021], 13);
+  let currentLocationShown = false;
   // ===== 現在地表示 =====
 let currentMarker = null;
 let currentCircle = null;
@@ -229,11 +230,12 @@ function showCurrentLocation() {
       const lng = pos.coords.longitude;
       const acc = pos.coords.accuracy;
 
-      // 前のを消す
+      // ★これが超重要
+      currentLocationShown = true;
+
       if (currentMarker) map.removeLayer(currentMarker);
       if (currentCircle) map.removeLayer(currentCircle);
 
-      // 青い現在地マーカー
       currentMarker = L.circleMarker([lat, lng], {
         radius: 8,
         color: "#2563eb",
@@ -242,7 +244,6 @@ function showCurrentLocation() {
         weight: 2
       }).addTo(map).bindPopup("現在地");
 
-      // 誤差円
       currentCircle = L.circle([lat, lng], {
         radius: acc,
         color: "#3b82f6",
@@ -601,9 +602,9 @@ if (name) {
       }
     });
 
-    if (markers.length > 0) {
-      map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
-    }
+if (markers.length > 0 && !currentLocationShown) {
+  map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+}
   })
   .catch(err => {
     console.error("CSV読み込みエラー:", err);
