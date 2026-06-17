@@ -4,37 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ユタカ駐車場">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ユタカ駐車場">
+
   <title>駐車場・賃貸物件マップ</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
-    #filterToggle {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 10000;
-  background: rgba(255,255,255,0.96);
-  padding: 8px 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-}
-
-#filterBox {
-  position: absolute;
-  top: 52px;
-  left: 10px;
-  z-index: 9999;
-}
-
-.hidden {
-  display: none;
-}
     html, body {
       margin: 0;
       padding: 0;
@@ -49,6 +25,32 @@
     #map {
       width: 100%;
       height: 100vh;
+    }
+
+    #filterToggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10000;
+      background: rgba(255,255,255,0.96);
+      padding: 8px 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #filterBox {
+      position: absolute;
+      top: 52px;
+      left: 10px;
+      z-index: 9999;
+    }
+
+    .hidden {
+      display: none;
     }
 
     #searchBox {
@@ -81,10 +83,19 @@
       color: white;
       cursor: pointer;
       font-size: 13px;
+      font-weight: 700;
     }
 
-    #searchBox button:last-child {
+    #searchBox button.resetBtn {
       background: #666;
+    }
+
+    #editModeBtn {
+      background: #f59e0b !important;
+    }
+
+    #editModeBtn.on {
+      background: #dc2626 !important;
     }
 
     .popup-title {
@@ -97,6 +108,22 @@
       margin-bottom: 4px;
       line-height: 1.5;
       font-size: 13px;
+    }
+
+    .popup-coord {
+      background: #f3f4f6;
+      padding: 5px 6px;
+      border-radius: 6px;
+      margin: 6px 0;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .popup-note {
+      color: #dc2626;
+      font-weight: 700;
+      font-size: 12px;
+      margin-top: 5px;
     }
 
     .popup-buttons {
@@ -116,6 +143,9 @@
       line-height: 1.2;
       font-weight: 700;
       white-space: nowrap;
+      border: none;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
     }
 
     .popup-link:hover,
@@ -160,457 +190,605 @@
       margin-right: 6px;
     }
 
-@media (max-width: 768px) {
-  #filterToggle {
-    top: 10px;
-    left: 10px;
-    font-size: 13px;
-    padding: 6px 8px;
-  }
+    @media (max-width: 768px) {
+      #filterToggle {
+        top: 10px;
+        left: 10px;
+        font-size: 13px;
+        padding: 6px 8px;
+      }
 
-  #filterBox {
-    top: 50px;
-    left: 10px;
-  }
+      #filterBox {
+        top: 50px;
+        left: 10px;
+      }
 
-  #searchBox {
-    position: fixed;   /* ←ここ重要 */
-    bottom: 10px;      /* ←下に固定 */
-    left: 10px;
-    right: 10px;
-    top: auto;         /* ←上指定を解除 */
-    z-index: 10000;
-    flex-wrap: wrap;
-    max-width: none;
-  }
+      #searchBox {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        top: auto;
+        z-index: 10000;
+        flex-wrap: wrap;
+        max-width: none;
+      }
 
-  #searchBox input {
-    width: 100%;
-    box-sizing: border-box;
-  }
-}
+      #searchBox input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #searchBox button {
+        flex: 1;
+        min-width: 70px;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div id="filterToggle">☰ フィルター</div>
-<div id="filterBox"></div>
+  <div id="filterBox"></div>
 
-<div id="searchBox">
-  <input type="text" id="keyword" placeholder="物件名・住所で検索">
-  <button onclick="searchLocation()">検索</button>
-  <button onclick="resetMap()">解除</button>
-</div>
+  <div id="searchBox">
+    <input type="text" id="keyword" placeholder="物件名・住所で検索">
+    <button onclick="searchLocation()">検索</button>
+    <button class="resetBtn" onclick="resetMap()">解除</button>
+    <button id="editModeBtn" onclick="toggleEditMode()">位置調整OFF</button>
+  </div>
 
-<div id="map"></div>
+  <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<script>
-  // ここを本物のスプレッドシートIDに変える
-const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
+  <script>
+    // ===== 設定 =====
+    const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
+    const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
+    const csvUrl = baseCsvUrl + "&t=" + Date.now();
 
-  const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
-  const csvUrl = baseCsvUrl + "&t=" + Date.now();
+    // ===== 地図 =====
+    const map = L.map("map").setView([34.9897, 137.0021], 13);
 
-  const map = L.map("map").setView([34.9897, 137.0021], 13);
-  let currentLocationShown = false;
-  // ===== 現在地表示 =====
-let currentMarker = null;
-let currentCircle = null;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-function showCurrentLocation() {
-  if (!navigator.geolocation) {
-    alert("この端末は位置情報に対応していません");
-    return;
-  }
+    // ===== 変数 =====
+    const markers = [];
+    const allData = [];
+    const markerIndex = {};
+    const markerGroups = {
+      parking: [],
+      housing: []
+    };
 
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const acc = pos.coords.accuracy;
+    let editMode = false;
+    let currentLocationShown = false;
+    let currentMarker = null;
+    let currentCircle = null;
 
-      // ★これが超重要
-      currentLocationShown = true;
+    // ===== 現在地表示 =====
+    function showCurrentLocation(center = false) {
+      if (!navigator.geolocation) {
+        alert("この端末は位置情報に対応していません");
+        return;
+      }
 
-      if (currentMarker) map.removeLayer(currentMarker);
-      if (currentCircle) map.removeLayer(currentCircle);
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const acc = pos.coords.accuracy;
 
-      currentMarker = L.circleMarker([lat, lng], {
-        radius: 8,
-        color: "#2563eb",
-        fillColor: "#3b82f6",
-        fillOpacity: 1,
-        weight: 2
-      }).addTo(map).bindPopup("現在地");
+          currentLocationShown = true;
 
-      currentCircle = L.circle([lat, lng], {
-        radius: acc,
-        color: "#3b82f6",
-        fillOpacity: 0.1
-      }).addTo(map);
+          if (currentMarker) map.removeLayer(currentMarker);
+          if (currentCircle) map.removeLayer(currentCircle);
 
-      map.setView([lat, lng], 17);
-    },
-    function(err) {
-      alert("現在地取得できません: " + err.message);
-    },
-    {
-      enableHighAccuracy: true
-    }
-  );
-}
-  // データ読み込み後に現在地取得
-showCurrentLocation();
+          currentMarker = L.circleMarker([lat, lng], {
+            radius: 8,
+            color: "#2563eb",
+            fillColor: "#3b82f6",
+            fillOpacity: 1,
+            weight: 2
+          }).addTo(map).bindPopup("現在地");
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+          currentCircle = L.circle([lat, lng], {
+            radius: acc,
+            color: "#3b82f6",
+            fillOpacity: 0.1
+          }).addTo(map);
 
-  const markers = [];
-  const allData = [];
-  const markerGroups = {
-    parking: [],
-    housing: []
-  };
-
-  function parseCSV(text) {
-    const rows = [];
-    let row = [];
-    let cell = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      const next = text[i + 1];
-
-      if (char === '"') {
-        if (inQuotes && next === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
+          // 現在地マーカーは表示するが、自動では現在地へズームしない
+          // ピンが「消えた」ように見える原因になるため
+          if (center) {
+            map.setView([lat, lng], 17);
+          }
+        },
+        function(err) {
+          console.log("現在地取得できません:", err.message);
+        },
+        {
+          enableHighAccuracy: true
         }
-      } else if (char === "," && !inQuotes) {
-        row.push(cell);
-        cell = "";
-      } else if ((char === "\n" || char === "\r") && !inQuotes) {
-        if (char === "\r" && next === "\n") i++;
+      );
+    }
+
+    // ===== CSV処理 =====
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === "," && !inQuotes) {
+          row.push(cell);
+          cell = "";
+        } else if ((char === "\n" || char === "\r") && !inQuotes) {
+          if (char === "\r" && next === "\n") i++;
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += char;
+        }
+      }
+
+      if (cell.length > 0 || row.length > 0) {
         row.push(cell);
         rows.push(row);
-        row = [];
-        cell = "";
-      } else {
-        cell += char;
       }
+
+      return rows;
     }
 
-    if (cell.length > 0 || row.length > 0) {
-      row.push(cell);
-      rows.push(row);
-    }
+    function toObjects(rows) {
+      if (!rows || rows.length === 0) return [];
 
-    return rows;
-  }
-
-  function toObjects(rows) {
-    const headers = rows[0].map(h => h.trim());
-    return rows.slice(1).map(r => {
-      const obj = {};
-      headers.forEach((h, i) => {
-        obj[h] = (r[i] || "").trim();
+      const headers = rows[0].map(h =>
+        String(h || "")
+          .replace(/^﻿/, "")
+          .replace(/​/g, "")
+          .trim()
+      );
+      return rows.slice(1).map(r => {
+        const obj = {};
+        headers.forEach((h, i) => {
+          obj[h] = (r[i] || "").trim();
+        });
+        return obj;
       });
-      return obj;
-    });
-  }
+    }
 
-  function num(v) {
-    return parseFloat(String(v || "").replace(/,/g, "").trim());
-  }
+    // ===== 共通関数 =====
+    function num(v) {
+      return parseFloat(String(v || "").replace(/,/g, "").trim());
+    }
 
-  function hasValue(v) {
-    return String(v || "").trim() !== "";
-  }
+    function hasValue(v) {
+      return String(v || "").trim() !== "";
+    }
 
-  function getStatusColor(status) {
-    const s = (status || "").trim();
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-    if (!s) return "#999999";      // 不明
-    if (s === "空予定") return "#f59e0b";
-    if (s === "空") return "#007bff";
-    if (s === "満") return "#dc2626";
+    function getStatusColor(status) {
+      const s = (status || "").trim();
 
-    if (s.includes("予定")) return "#f59e0b";
-    if (s.includes("空")) return "#007bff";
-    if (s.includes("満")) return "#dc2626";
+      if (!s) return "#999999";
+      if (s === "空予定") return "#f59e0b";
+      if (s === "空") return "#007bff";
+      if (s === "満") return "#dc2626";
 
-    return "#999999";
-  }
+      if (s.includes("予定")) return "#f59e0b";
+      if (s.includes("空")) return "#007bff";
+      if (s.includes("満")) return "#dc2626";
 
-  function getTypeIcon(type) {
-    const t = (type || "").trim();
-    if (t.includes("駐車場")) return "P";
-    if (t.includes("居住") || t.includes("賃貸")) return "⌂";
-    return "●";
-  }
+      return "#999999";
+    }
 
-  function isParking(type) {
-    return String(type || "").includes("駐車場");
-  }
+    function getTypeIcon(type) {
+      const t = (type || "").trim();
+      if (t.includes("駐車場")) return "P";
+      if (t.includes("居住") || t.includes("賃貸")) return "⌂";
+      return "●";
+    }
 
-  function createGoogleMapUrl(lat, lng) {
-    return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
-  }
+    function isParking(type) {
+      return String(type || "").includes("駐車場");
+    }
 
-  function formatPrice(value) {
-    const raw = String(value || "").trim();
-    if (!raw) return "";
-    if (raw.includes("¥") || raw.includes("￥")) return raw;
+    function createGoogleMapUrl(lat, lng) {
+      return `https://www.google.com/maps?q=${lat},${lng}&t=k`;
+    }
 
-    const n = parseInt(raw.replace(/,/g, ""), 10);
-    if (isNaN(n)) return raw;
+    function formatPrice(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      if (raw.includes("¥") || raw.includes("￥")) return raw;
 
-    return "¥" + n.toLocaleString();
-  }
+      const n = parseInt(raw.replace(/,/g, ""), 10);
+      if (isNaN(n)) return raw;
 
-  function createIcon(color, text, price, type) {
-    const parking = isParking(type);
-    const showPrice = parking && hasValue(price);
-    const displayPrice = formatPrice(price);
+      return "¥" + n.toLocaleString();
+    }
 
-    return L.divIcon({
-      className: "",
-      html: `
-        <div style="
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:flex-start;
-          transform: translateY(-4px);
-          font-family:Arial,sans-serif;
-        ">
+    function createIcon(color, text, price, type) {
+      const parking = isParking(type);
+      const showPrice = parking && hasValue(price);
+      const displayPrice = formatPrice(price);
+
+      return L.divIcon({
+        className: "",
+        html: `
           <div style="
-            width:34px;
-            height:34px;
-            border-radius:50%;
-            background:${color};
-            color:white;
             display:flex;
+            flex-direction:column;
             align-items:center;
-            justify-content:center;
-            font-size:${text === "⌂" ? "16px" : "14px"};
-            font-weight:700;
-            border:2px solid white;
-            box-shadow:0 2px 6px rgba(0,0,0,0.28);
-            box-sizing:border-box;
-            line-height:1;
-          ">${text}</div>
-          ${showPrice ? `
+            justify-content:flex-start;
+            transform: translateY(-4px);
+            font-family:Arial,sans-serif;
+          ">
             <div style="
-              margin-top:3px;
-              background:rgba(255,255,255,0.98);
-              color:#111;
-              border-radius:999px;
-              padding:2px 8px;
-              font-size:12px;
+              width:34px;
+              height:34px;
+              border-radius:50%;
+              background:${color};
+              color:white;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              font-size:${text === "⌂" ? "16px" : "14px"};
               font-weight:700;
-              white-space:nowrap;
-              box-shadow:0 1px 4px rgba(0,0,0,0.18);
-              border:none;
-            ">${displayPrice}</div>
-          ` : ""}
-        </div>
-      `,
-      iconSize: [showPrice ? 70 : 34, showPrice ? 54 : 34],
-      iconAnchor: [showPrice ? 35 : 17, showPrice ? 42 : 17],
-      popupAnchor: [0, -18]
-    });
-  }
-
-  function updateVisibleMarkers() {
-    const showParking = document.getElementById("filterParking")?.checked ?? true;
-    const showHousing = document.getElementById("filterHousing")?.checked ?? true;
-
-    [...markerGroups.parking, ...markerGroups.housing].forEach(marker => {
-      if (map.hasLayer(marker)) {
-        map.removeLayer(marker);
-      }
-    });
-
-    if (showParking) {
-      markerGroups.parking.forEach(marker => marker.addTo(map));
-    }
-
-    if (showHousing) {
-      markerGroups.housing.forEach(marker => marker.addTo(map));
-    }
-  }
-
-  function searchLocation() {
-    const keyword = document.getElementById("keyword").value.trim().toLowerCase();
-    if (!keyword) return;
-
-    const results = allData.filter(d =>
-      d.name.toLowerCase().includes(keyword) ||
-      d.address.toLowerCase().includes(keyword)
-    );
-
-    if (results.length === 0) {
-      alert("該当データがありません。");
-      return;
-    }
-
-    if (results.length === 1) {
-      map.setView([results[0].lat, results[0].lng], 17);
-      results[0].marker.openPopup();
-    } else {
-      const group = L.featureGroup(results.map(r => r.marker));
-      map.fitBounds(group.getBounds().pad(0.2));
-    }
-  }
-
-  function resetMap() {
-    document.getElementById("keyword").value = "";
-    if (markers.length > 0) {
-      const group = L.featureGroup(markers);
-      map.fitBounds(group.getBounds().pad(0.2));
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const input = document.getElementById("keyword");
-    input.addEventListener("keydown", function(e) {
-      if (e.key === "Enter") {
-        searchLocation();
-      }
-    });
-  });
-
-function renderFilterBox() {
-  const box = document.getElementById("filterBox");
-  box.innerHTML = `
-    <div class="map-legend">
-      <div class="map-legend-title">表示フィルター</div>
-
-      <div class="legend-row">
-        <label><input type="checkbox" id="filterHousing" class="filter-check" checked>居住用</label>
-      </div>
-      <div class="legend-row">
-        <label><input type="checkbox" id="filterParking" class="filter-check" checked>駐車場</label>
-      </div>
-
-      <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-
-      <div class="legend-row"><span class="legend-dot" style="background:#007bff;"></span><span>空</span></div>
-      <div class="legend-row"><span class="legend-dot" style="background:#f59e0b;"></span><span>空予定</span></div>
-      <div class="legend-row"><span class="legend-dot" style="background:#dc2626;"></span><span>満</span></div>
-      <div class="legend-row"><span class="legend-dot" style="background:#999999;"></span><span>不明</span></div>
-      <div class="legend-row"><span>⌂ = 居住用 / P = 駐車場</span></div>
-    </div>
-  `;
-
-  const filterHousing = document.getElementById("filterHousing");
-  const filterParking = document.getElementById("filterParking");
-
-  if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
-  if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const input = document.getElementById("keyword");
-  if (input) {
-    input.addEventListener("keydown", function(e) {
-      if (e.key === "Enter") {
-        searchLocation();
-      }
-    });
-  }
-
-  renderFilterBox();
-
-  const toggle = document.getElementById("filterToggle");
-  const box = document.getElementById("filterBox");
-
-  if (toggle && box) {
-    toggle.addEventListener("click", function() {
-      box.classList.toggle("hidden");
-    });
-  }
-});
-
-fetch(csvUrl)
-  .then(r => r.text())
-  .then(text => {
-    const data = toObjects(parseCSV(text));
-
-    data.forEach(item => {
-      const name = item["名称"] || "";
-      const type = item["種別"] || "";
-      const status = item["空き状況"] || "";
-      const price = item["月額"] || "";
-      const shortPrice = item["短期"] || "";
-      const address = item["所在地"] || "";
-      const note = item["備考"] || "";
-      const sheetGid = item["gid"] || "";
-      const lat = num(item["緯度"]);
-      const lng = num(item["経度"]);
-
-      if (!lat || !lng) return;
-
-      const statusColor = getStatusColor(status);
-
-      const marker = L.marker([lat, lng], {
-        icon: createIcon(statusColor, getTypeIcon(type), price, type)
+              border:2px solid white;
+              box-shadow:0 2px 6px rgba(0,0,0,0.28);
+              box-sizing:border-box;
+              line-height:1;
+            ">${escapeHtml(text)}</div>
+            ${showPrice ? `
+              <div style="
+                margin-top:3px;
+                background:rgba(255,255,255,0.98);
+                color:#111;
+                border-radius:999px;
+                padding:2px 8px;
+                font-size:12px;
+                font-weight:700;
+                white-space:nowrap;
+                box-shadow:0 1px 4px rgba(0,0,0,0.18);
+                border:none;
+              ">${escapeHtml(displayPrice)}</div>
+            ` : ""}
+          </div>
+        `,
+        iconSize: [showPrice ? 70 : 34, showPrice ? 54 : 34],
+        iconAnchor: [showPrice ? 35 : 17, showPrice ? 42 : 17],
+        popupAnchor: [0, -18]
       });
+    }
 
-if (name) {
-  marker.bindTooltip(name, {
-    direction: "top",
-    offset: [0, -18],
-    opacity: 0.95,
-    sticky: true
-  });
-}
+    // ===== ポップアップ作成 =====
+    function createPopupHtml(data) {
+      const lat = Number(data.lat).toFixed(8);
+      const lng = Number(data.lng).toFixed(8);
 
-      let html = `<div class="popup-title">${name || "名称未設定"}</div>`;
+      let html = `<div class="popup-title">${escapeHtml(data.name || "名称未設定")}</div>`;
 
-      if (status) html += `<div class="popup-row"><strong>状況：</strong>${status}</div>`;
-      if (price) html += `<div class="popup-row"><strong>月額：</strong>${formatPrice(price)}</div>`;
-      if (shortPrice) html += `<div class="popup-row">短期：${formatPrice(shortPrice)}</div>`;
-      if (address) html += `<div class="popup-row"><strong>住所：</strong>${address}</div>`;
-      if (note) html += `<div class="popup-row"><strong>備考：</strong>${note}</div>`;
+      if (data.status) html += `<div class="popup-row"><strong>状況：</strong>${escapeHtml(data.status)}</div>`;
+      if (data.price) html += `<div class="popup-row"><strong>月額：</strong>${escapeHtml(formatPrice(data.price))}</div>`;
+      if (data.shortPrice) html += `<div class="popup-row"><strong>短期：</strong>${escapeHtml(formatPrice(data.shortPrice))}</div>`;
+      if (data.address) html += `<div class="popup-row"><strong>住所：</strong>${escapeHtml(data.address)}</div>`;
+      if (data.note) html += `<div class="popup-row"><strong>備考：</strong>${escapeHtml(data.note)}</div>`;
+
+      html += `
+        <div class="popup-coord">
+          <div><strong>緯度：</strong>${lat}</div>
+          <div><strong>経度：</strong>${lng}</div>
+        </div>
+      `;
+
+      if (editMode) {
+        html += `<div class="popup-note">位置調整中：ピンをドラッグできます</div>`;
+      }
 
       html += `<div class="popup-buttons">`;
 
-      if (sheetGid) {
-        const sheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${sheetGid}`;
+      if (data.sheetGid) {
+        const sheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${encodeURIComponent(data.sheetGid)}`;
         html += `<a class="popup-link" target="_blank" href="${sheetUrl}" style="background:#16a34a;">シート</a>`;
       }
 
+      html += `<button class="popup-link" type="button" onclick="copyMarkerCoords('${data.markerId}')" style="background:#9333ea;">座標コピー</button>`;
       html += `<a class="popup-link" target="_blank" href="${createGoogleMapUrl(lat, lng)}" style="background:#0078d7;">航空</a>`;
       html += `</div>`;
 
-      marker.bindPopup(html).addTo(map);
+      return html;
+    }
 
-      markers.push(marker);
-      allData.push({ name, address, lat, lng, marker });
+    function refreshAllPopups() {
+      allData.forEach(data => {
+        if (data.marker) {
+          data.marker.setPopupContent(createPopupHtml(data));
+        }
+      });
+    }
 
-      if (isParking(type)) {
-        markerGroups.parking.push(marker);
-      } else {
-        markerGroups.housing.push(marker);
+    // ===== 位置調整モード =====
+    function toggleEditMode() {
+      editMode = !editMode;
+
+      const btn = document.getElementById("editModeBtn");
+      if (btn) {
+        btn.textContent = editMode ? "位置調整ON" : "位置調整OFF";
+        btn.classList.toggle("on", editMode);
       }
+
+      markers.forEach(marker => {
+        if (!marker.dragging) return;
+
+        if (editMode) {
+          marker.dragging.enable();
+        } else {
+          marker.dragging.disable();
+        }
+      });
+
+      refreshAllPopups();
+
+      alert(
+        editMode
+          ? "位置調整モードです。\n\nピンをドラッグして動かせます。\n調整後、ポップアップの「座標コピー」を押してください。"
+          : "位置調整モードを終了しました。"
+      );
+    }
+
+    function copyMarkerCoords(markerId) {
+      const data = markerIndex[markerId];
+      if (!data || !data.marker) return;
+
+      const p = data.marker.getLatLng();
+      const lat = p.lat.toFixed(8);
+      const lng = p.lng.toFixed(8);
+      const text = `${lat}\t${lng}`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            alert(`座標をコピーしました。\n\n緯度：${lat}\n経度：${lng}\n\n元シートの I列・J列に貼り付けてください。`);
+          })
+          .catch(() => {
+            alert(`コピーできない場合は手入力してください。\n\n緯度：${lat}\n経度：${lng}`);
+          });
+      } else {
+        alert(`この端末では自動コピーできません。\n手入力してください。\n\n緯度：${lat}\n経度：${lng}`);
+      }
+    }
+
+    // ===== 表示フィルター =====
+    function updateVisibleMarkers() {
+      const showParking = document.getElementById("filterParking")?.checked ?? true;
+      const showHousing = document.getElementById("filterHousing")?.checked ?? true;
+
+      [...markerGroups.parking, ...markerGroups.housing].forEach(marker => {
+        if (map.hasLayer(marker)) {
+          map.removeLayer(marker);
+        }
+      });
+
+      if (showParking) {
+        markerGroups.parking.forEach(marker => marker.addTo(map));
+      }
+
+      if (showHousing) {
+        markerGroups.housing.forEach(marker => marker.addTo(map));
+      }
+    }
+
+    function renderFilterBox() {
+      const box = document.getElementById("filterBox");
+      box.innerHTML = `
+        <div class="map-legend">
+          <div class="map-legend-title">表示フィルター</div>
+
+          <div class="legend-row">
+            <label><input type="checkbox" id="filterHousing" class="filter-check" checked>居住用</label>
+          </div>
+          <div class="legend-row">
+            <label><input type="checkbox" id="filterParking" class="filter-check" checked>駐車場</label>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
+
+          <div class="legend-row"><span class="legend-dot" style="background:#007bff;"></span><span>空</span></div>
+          <div class="legend-row"><span class="legend-dot" style="background:#f59e0b;"></span><span>空予定</span></div>
+          <div class="legend-row"><span class="legend-dot" style="background:#dc2626;"></span><span>満</span></div>
+          <div class="legend-row"><span class="legend-dot" style="background:#999999;"></span><span>不明</span></div>
+          <div class="legend-row"><span>⌂ = 居住用 / P = 駐車場</span></div>
+        </div>
+      `;
+
+      const filterHousing = document.getElementById("filterHousing");
+      const filterParking = document.getElementById("filterParking");
+
+      if (filterHousing) filterHousing.addEventListener("change", updateVisibleMarkers);
+      if (filterParking) filterParking.addEventListener("change", updateVisibleMarkers);
+    }
+
+    // ===== 検索 =====
+    function searchLocation() {
+      const keyword = document.getElementById("keyword").value.trim().toLowerCase();
+      if (!keyword) return;
+
+      const results = allData.filter(d =>
+        String(d.name || "").toLowerCase().includes(keyword) ||
+        String(d.address || "").toLowerCase().includes(keyword)
+      );
+
+      if (results.length === 0) {
+        alert("該当データがありません。");
+        return;
+      }
+
+      if (results.length === 1) {
+        const p = results[0].marker.getLatLng();
+        map.setView([p.lat, p.lng], 17);
+        results[0].marker.openPopup();
+      } else {
+        const group = L.featureGroup(results.map(r => r.marker));
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+    }
+
+    function resetMap() {
+      document.getElementById("keyword").value = "";
+
+      if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+      }
+    }
+
+    // ===== 初期化 =====
+    document.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("keyword");
+      if (input) {
+        input.addEventListener("keydown", function(e) {
+          if (e.key === "Enter") {
+            searchLocation();
+          }
+        });
+      }
+
+      renderFilterBox();
+
+      const toggle = document.getElementById("filterToggle");
+      const box = document.getElementById("filterBox");
+
+      if (toggle && box) {
+        toggle.addEventListener("click", function() {
+          box.classList.toggle("hidden");
+        });
+      }
+
+      showCurrentLocation(false);
     });
 
-if (markers.length > 0 && !currentLocationShown) {
-  map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
-}
-  })
-  .catch(err => {
-    console.error("CSV読み込みエラー:", err);
-    alert("CSVの読み込みに失敗しました");
-  });
-</script>
+    // ===== CSV読み込み =====
+    fetch(csvUrl)
+      .then(r => r.text())
+      .then(text => {
+        const data = toObjects(parseCSV(text));
 
+        data.forEach(item => {
+          const name = item["名称"] || "";
+          const type = item["種別"] || "";
+          const status = item["空き状況"] || "";
+          const price = item["月額"] || "";
+          const shortPrice = item["短期"] || "";
+          const address = item["所在地"] || "";
+          const note = item["備考"] || "";
+          const sheetGid = item["gid"] || "";
+          const lat = num(item["緯度"]);
+          const lng = num(item["経度"]);
+
+          if (!lat || !lng) return;
+
+          const statusColor = getStatusColor(status);
+          const markerId = "marker_" + markers.length;
+
+          const marker = L.marker([lat, lng], {
+            icon: createIcon(statusColor, getTypeIcon(type), price, type),
+            draggable: true
+          }).addTo(map);
+
+          if (!editMode && marker.dragging) {
+            marker.dragging.disable();
+          }
+
+          const dataItem = {
+            markerId,
+            marker,
+            name,
+            type,
+            status,
+            price,
+            shortPrice,
+            address,
+            note,
+            sheetGid,
+            lat,
+            lng
+          };
+
+          markerIndex[markerId] = dataItem;
+
+          if (name) {
+            marker.bindTooltip(escapeHtml(name), {
+              direction: "top",
+              offset: [0, -18],
+              opacity: 0.95,
+              sticky: true
+            });
+          }
+
+          marker.bindPopup(createPopupHtml(dataItem));
+
+          marker.on("dragend", function() {
+            const p = marker.getLatLng();
+
+            dataItem.lat = p.lat;
+            dataItem.lng = p.lng;
+
+            marker.setPopupContent(createPopupHtml(dataItem));
+            marker.openPopup();
+          });
+
+          markers.push(marker);
+          allData.push(dataItem);
+
+          if (isParking(type)) {
+            markerGroups.parking.push(marker);
+          } else {
+            markerGroups.housing.push(marker);
+          }
+        });
+
+        if (markers.length > 0) {
+          // CSVのピンを必ず画面内に表示する
+          map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+        } else {
+          console.warn("表示できるピンがありません。CSVの見出し・緯度・経度を確認してください。", data.slice(0, 5));
+          alert(`表示できるピンがありません。
+
+総覧シートの見出しが H1=緯度、I1=経度 になっているか、H列・I列に数値が入っているか確認してください。
+
+※公開CSVの更新に少し時間がかかる場合もあります。`);
+        }
+      })
+      .catch(err => {
+        console.error("CSV読み込みエラー:", err);
+        alert("CSVの読み込みに失敗しました");
+      });
+  </script>
 </body>
 </html>
