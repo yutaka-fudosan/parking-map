@@ -27,35 +27,6 @@
       height: 100vh;
     }
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="ユタカ駐車場">
-  <title>駐車場・賃貸物件マップ</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: Arial, sans-serif;
-    }
-
-    body {
-      position: relative;
-    }
-
-    #map {
-      width: 100%;
-      height: 100vh;
-    }
-
     #filterToggle {
       position: absolute;
       top: 10px;
@@ -301,10 +272,7 @@
     const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
     const csvUrl = baseCsvUrl + "&t=" + Date.now();
 
-    // ★ここにApps Scriptの /exec URL を入れる
     const POSITION_UPDATE_URL = "https://script.google.com/macros/s/AKfycbzMkdoIBW_LOsT_hLfg21cQH_7DQ34SWaf8ka2e7aOSGLnNj77eZMUvAskYzGqYuZ-2AQ/exec";
-
-    // Apps Script側の TOKEN と同じ文字
     const POSITION_UPDATE_TOKEN = "yutaka-map-2026";
 
     // ===== 地図 =====
@@ -324,7 +292,6 @@
     };
 
     let editMode = false;
-    let currentLocationShown = false;
     let currentMarker = null;
     let currentCircle = null;
     let toastTimer = null;
@@ -341,6 +308,7 @@
         : "rgba(17, 24, 39, 0.92)";
 
       if (toastTimer) clearTimeout(toastTimer);
+
       toastTimer = setTimeout(() => {
         box.style.display = "none";
       }, 3500);
@@ -348,17 +316,13 @@
 
     // ===== 現在地表示 =====
     function showCurrentLocation(center = false) {
-      if (!navigator.geolocation) {
-        return;
-      }
+      if (!navigator.geolocation) return;
 
       navigator.geolocation.getCurrentPosition(
         function(pos) {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           const acc = pos.coords.accuracy;
-
-          currentLocationShown = true;
 
           if (currentMarker) map.removeLayer(currentMarker);
           if (currentCircle) map.removeLayer(currentCircle);
@@ -587,7 +551,7 @@
       `;
 
       if (editMode) {
-        html += `<div class="popup-note">位置調整中：ピンをドラッグするとスプレッドシートへ保存されます</div>`;
+        html += `<div class="popup-note">位置調整中：ピンをドラッグすると自動保存されます</div>`;
       }
 
       html += `<div class="popup-buttons">`;
@@ -597,8 +561,6 @@
         html += `<a class="popup-link" target="_blank" href="${sheetUrl}" style="background:#16a34a;">シート</a>`;
       }
 
-      html += `<button class="popup-link" type="button" onclick="saveMarkerPosition('${data.markerId}')" style="background:#dc2626;">保存</button>`;
-      html += `<button class="popup-link" type="button" onclick="copyMarkerCoords('${data.markerId}')" style="background:#9333ea;">座標コピー</button>`;
       html += `<a class="popup-link" target="_blank" href="${createGoogleMapUrl(lat, lng)}" style="background:#0078d7;">航空</a>`;
       html += `</div>`;
 
@@ -678,8 +640,10 @@
 
       script.onerror = function() {
         if (finished) return;
+
         finished = true;
         cleanup();
+
         showStatus("保存通信に失敗しました", true);
         alert("保存通信に失敗しました。Apps ScriptのURLやデプロイ設定を確認してください。");
       };
@@ -689,8 +653,10 @@
 
       setTimeout(function() {
         if (finished) return;
+
         finished = true;
         cleanup();
+
         showStatus("保存確認が返ってきません", true);
         alert("保存確認が返ってきません。Apps ScriptのデプロイURL、アクセス権限、TOKENを確認してください。");
       }, 15000);
@@ -725,28 +691,6 @@
       );
     }
 
-    function copyMarkerCoords(markerId) {
-      const data = markerIndex[markerId];
-      if (!data || !data.marker) return;
-
-      const p = data.marker.getLatLng();
-      const lat = p.lat.toFixed(8);
-      const lng = p.lng.toFixed(8);
-      const text = `${lat}\t${lng}`;
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text)
-          .then(() => {
-            alert(`座標をコピーしました。\n\n緯度：${lat}\n経度：${lng}\n\n元シートの I列・J列に貼り付けできます。`);
-          })
-          .catch(() => {
-            alert(`コピーできない場合は手入力してください。\n\n緯度：${lat}\n経度：${lng}`);
-          });
-      } else {
-        alert(`この端末では自動コピーできません。\n手入力してください。\n\n緯度：${lat}\n経度：${lng}`);
-      }
-    }
-
     // ===== 表示フィルター =====
     function updateVisibleMarkers() {
       const showParking = document.getElementById("filterParking")?.checked ?? true;
@@ -769,6 +713,7 @@
 
     function renderFilterBox() {
       const box = document.getElementById("filterBox");
+
       box.innerHTML = `
         <div class="map-legend">
           <div class="map-legend-title">表示フィルター</div>
@@ -834,6 +779,7 @@
     // ===== 初期化 =====
     document.addEventListener("DOMContentLoaded", () => {
       const input = document.getElementById("keyword");
+
       if (input) {
         input.addEventListener("keydown", function(e) {
           if (e.key === "Enter") {
@@ -928,7 +874,6 @@
             marker.setPopupContent(createPopupHtml(dataItem));
             marker.openPopup();
 
-            // ドラッグ終了時に自動保存
             saveMarkerPosition(markerId);
           });
 
@@ -946,6 +891,7 @@
           map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
         } else {
           console.warn("表示できるピンがありません。CSVの見出し・緯度・経度を確認してください。", data.slice(0, 5));
+
           alert(`表示できるピンがありません。
 
 総覧シートの見出しが H1=緯度、I1=経度 になっているか、H列・I列に数値が入っているか確認してください。
