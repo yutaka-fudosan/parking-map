@@ -128,15 +128,6 @@
       font-size: 13px;
     }
 
-    .popup-coord {
-      background: #f3f4f6;
-      padding: 5px 6px;
-      border-radius: 6px;
-      margin: 6px 0;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
     .popup-note {
       color: #dc2626;
       font-weight: 700;
@@ -542,13 +533,6 @@
       if (data.shortPrice) html += `<div class="popup-row"><strong>短期：</strong>${escapeHtml(formatPrice(data.shortPrice))}</div>`;
       if (data.address) html += `<div class="popup-row"><strong>住所：</strong>${escapeHtml(data.address)}</div>`;
       if (data.note) html += `<div class="popup-row"><strong>備考：</strong>${escapeHtml(data.note)}</div>`;
-
-      html += `
-        <div class="popup-coord">
-          <div><strong>緯度：</strong>${lat}</div>
-          <div><strong>経度：</strong>${lng}</div>
-        </div>
-      `;
 
       if (editMode) {
         html += `<div class="popup-note">位置調整中：ピンをドラッグすると自動保存されます</div>`;
