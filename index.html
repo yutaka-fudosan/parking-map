@@ -27,6 +27,35 @@
       height: 100vh;
     }
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ユタカ駐車場">
+  <title>駐車場・賃貸物件マップ</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+
     #filterToggle {
       position: absolute;
       top: 10px;
@@ -96,6 +125,24 @@
 
     #editModeBtn.on {
       background: #dc2626 !important;
+    }
+
+    #saveStatus {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10001;
+      background: rgba(17, 24, 39, 0.92);
+      color: white;
+      padding: 9px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      display: none;
+      max-width: calc(100% - 40px);
+      text-align: center;
     }
 
     .popup-title {
@@ -223,6 +270,10 @@
         flex: 1;
         min-width: 70px;
       }
+
+      #saveStatus {
+        bottom: 78px;
+      }
     }
   </style>
 </head>
@@ -238,6 +289,7 @@
     <button id="editModeBtn" onclick="toggleEditMode()">位置調整OFF</button>
   </div>
 
+  <div id="saveStatus"></div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -245,8 +297,15 @@
   <script>
     // ===== 設定 =====
     const SPREADSHEET_ID = "1pJ83qHK4bOB9Ieu6hE6PaKTSoEgDrQ_NF_gnwh6tGcI";
+
     const baseCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76snEoxeYompsWzXbGi-bdBG6Q5ZLT7lQjq1uMscKSbdCK_PZ8MYz8mUy3U1zrKANbdAwNWqAcSTf/pub?gid=1483465781&single=true&output=csv";
     const csvUrl = baseCsvUrl + "&t=" + Date.now();
+
+    // ★ここにApps Scriptの /exec URL を入れる
+    const POSITION_UPDATE_URL = "https://script.google.com/macros/s/AKfycbzMkdoIBW_LOsT_hLfg21cQH_7DQ34SWaf8ka2e7aOSGLnNj77eZMUvAskYzGqYuZ-2AQ/exec";
+
+    // Apps Script側の TOKEN と同じ文字
+    const POSITION_UPDATE_TOKEN = "yutaka-map-2026";
 
     // ===== 地図 =====
     const map = L.map("map").setView([34.9897, 137.0021], 13);
@@ -268,11 +327,28 @@
     let currentLocationShown = false;
     let currentMarker = null;
     let currentCircle = null;
+    let toastTimer = null;
+
+    // ===== メッセージ表示 =====
+    function showStatus(message, isError = false) {
+      const box = document.getElementById("saveStatus");
+      if (!box) return;
+
+      box.textContent = message;
+      box.style.display = "block";
+      box.style.background = isError
+        ? "rgba(220, 38, 38, 0.94)"
+        : "rgba(17, 24, 39, 0.92)";
+
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        box.style.display = "none";
+      }, 3500);
+    }
 
     // ===== 現在地表示 =====
     function showCurrentLocation(center = false) {
       if (!navigator.geolocation) {
-        alert("この端末は位置情報に対応していません");
         return;
       }
 
@@ -301,8 +377,6 @@
             fillOpacity: 0.1
           }).addTo(map);
 
-          // 現在地マーカーは表示するが、自動では現在地へズームしない
-          // ピンが「消えた」ように見える原因になるため
           if (center) {
             map.setView([lat, lng], 17);
           }
@@ -361,10 +435,11 @@
 
       const headers = rows[0].map(h =>
         String(h || "")
-          .replace(/^﻿/, "")
-          .replace(/​/g, "")
+          .replace(/^\uFEFF/, "")
+          .replace(/\u200B/g, "")
           .trim()
       );
+
       return rows.slice(1).map(r => {
         const obj = {};
         headers.forEach((h, i) => {
@@ -377,6 +452,10 @@
     // ===== 共通関数 =====
     function num(v) {
       return parseFloat(String(v || "").replace(/,/g, "").trim());
+    }
+
+    function isFiniteNumber(v) {
+      return typeof v === "number" && isFinite(v);
     }
 
     function hasValue(v) {
@@ -508,7 +587,7 @@
       `;
 
       if (editMode) {
-        html += `<div class="popup-note">位置調整中：ピンをドラッグできます</div>`;
+        html += `<div class="popup-note">位置調整中：ピンをドラッグするとスプレッドシートへ保存されます</div>`;
       }
 
       html += `<div class="popup-buttons">`;
@@ -518,6 +597,7 @@
         html += `<a class="popup-link" target="_blank" href="${sheetUrl}" style="background:#16a34a;">シート</a>`;
       }
 
+      html += `<button class="popup-link" type="button" onclick="saveMarkerPosition('${data.markerId}')" style="background:#dc2626;">保存</button>`;
       html += `<button class="popup-link" type="button" onclick="copyMarkerCoords('${data.markerId}')" style="background:#9333ea;">座標コピー</button>`;
       html += `<a class="popup-link" target="_blank" href="${createGoogleMapUrl(lat, lng)}" style="background:#0078d7;">航空</a>`;
       html += `</div>`;
@@ -531,6 +611,89 @@
           data.marker.setPopupContent(createPopupHtml(data));
         }
       });
+    }
+
+    // ===== 位置保存：Apps Scriptへ送信 =====
+    function saveMarkerPosition(markerId) {
+      const data = markerIndex[markerId];
+      if (!data || !data.marker) return;
+
+      if (!POSITION_UPDATE_URL) {
+        showStatus("Apps ScriptのURLが未設定です", true);
+        alert("HTML内の POSITION_UPDATE_URL に Apps Script の /exec URL を入れてください。");
+        return;
+      }
+
+      const p = data.marker.getLatLng();
+      const lat = p.lat.toFixed(8);
+      const lng = p.lng.toFixed(8);
+
+      data.lat = Number(lat);
+      data.lng = Number(lng);
+      data.marker.setPopupContent(createPopupHtml(data));
+
+      const callbackName = "yutakaPositionCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+
+      const params = new URLSearchParams({
+        action: "updatePosition",
+        token: POSITION_UPDATE_TOKEN,
+        name: data.name,
+        type: data.type,
+        lat: lat,
+        lng: lng,
+        callback: callbackName
+      });
+
+      const url = POSITION_UPDATE_URL + (POSITION_UPDATE_URL.includes("?") ? "&" : "?") + params.toString();
+
+      showStatus("保存中...");
+
+      let finished = false;
+      const script = document.createElement("script");
+
+      function cleanup() {
+        try {
+          delete window[callbackName];
+        } catch (e) {
+          window[callbackName] = undefined;
+        }
+
+        if (script && script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      }
+
+      window[callbackName] = function(res) {
+        finished = true;
+        cleanup();
+
+        if (res && res.ok) {
+          showStatus(`保存しました：${res.sheetName} ${res.row}行目`);
+        } else {
+          const msg = res && res.error ? res.error : "保存に失敗しました";
+          showStatus(msg, true);
+          alert(msg);
+        }
+      };
+
+      script.onerror = function() {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        showStatus("保存通信に失敗しました", true);
+        alert("保存通信に失敗しました。Apps ScriptのURLやデプロイ設定を確認してください。");
+      };
+
+      script.src = url;
+      document.body.appendChild(script);
+
+      setTimeout(function() {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        showStatus("保存確認が返ってきません", true);
+        alert("保存確認が返ってきません。Apps ScriptのデプロイURL、アクセス権限、TOKENを確認してください。");
+      }, 15000);
     }
 
     // ===== 位置調整モード =====
@@ -557,7 +720,7 @@
 
       alert(
         editMode
-          ? "位置調整モードです。\n\nピンをドラッグして動かせます。\n調整後、ポップアップの「座標コピー」を押してください。"
+          ? "位置調整モードです。\n\nピンをドラッグすると、スプレッドシートの I列・J列へ自動保存されます。"
           : "位置調整モードを終了しました。"
       );
     }
@@ -574,7 +737,7 @@
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text)
           .then(() => {
-            alert(`座標をコピーしました。\n\n緯度：${lat}\n経度：${lng}\n\n元シートの I列・J列に貼り付けてください。`);
+            alert(`座標をコピーしました。\n\n緯度：${lat}\n経度：${lng}\n\n元シートの I列・J列に貼り付けできます。`);
           })
           .catch(() => {
             alert(`コピーできない場合は手入力してください。\n\n緯度：${lat}\n経度：${lng}`);
@@ -708,10 +871,13 @@
           const address = item["所在地"] || "";
           const note = item["備考"] || "";
           const sheetGid = item["gid"] || "";
+
           const lat = num(item["緯度"]);
           const lng = num(item["経度"]);
 
-          if (!lat || !lng) return;
+          if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) {
+            return;
+          }
 
           const statusColor = getStatusColor(status);
           const markerId = "marker_" + markers.length;
@@ -761,6 +927,9 @@
 
             marker.setPopupContent(createPopupHtml(dataItem));
             marker.openPopup();
+
+            // ドラッグ終了時に自動保存
+            saveMarkerPosition(markerId);
           });
 
           markers.push(marker);
@@ -774,7 +943,6 @@
         });
 
         if (markers.length > 0) {
-          // CSVのピンを必ず画面内に表示する
           map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
         } else {
           console.warn("表示できるピンがありません。CSVの見出し・緯度・経度を確認してください。", data.slice(0, 5));
